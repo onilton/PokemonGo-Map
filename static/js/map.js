@@ -391,7 +391,7 @@ function openMapDirections(lat, lng) { // eslint-disable-line no-unused-vars
     window.open(url, '_blank')
 }
 
-function pokemonLabel(name, rarity, types, disappearTime, id, latitude, longitude, encounterId, atk, def, sta, move1, move2) {
+function pokemonLabel(name, rarity, types, disappearTime, id, latitude, longitude, encounterId, atk, def, sta, move1, move2, isLured) {
     var disappearDate = new Date(disappearTime)
     var rarityDisplay = rarity ? '(' + rarity + ')' : ''
     var typesDisplay = ''
@@ -411,6 +411,7 @@ function pokemonLabel(name, rarity, types, disappearTime, id, latitude, longitud
             `
     }
     var contentstring = `
+        ${isLured ? '<div><b>Lured Pokemon</b></div>' : ''}
         <div>
             <b>${name}</b>
             <span> - </span>
@@ -673,6 +674,7 @@ function getTimeUntil(time) {
 }
 
 function getNotifyText(item) {
+    var isLured = item['pokestop_id'] !== null
     var iv = getIv(item['individual_attack'], item['individual_defense'], item['individual_stamina'])
     var find = ['<prc>', '<pkm>', '<atk>', '<def>', '<sta>']
     var replace = [((iv) ? iv.toFixed(1) : ''), item['pokemon_name'], item['individual_attack'],
@@ -688,6 +690,10 @@ function getNotifyText(item) {
     replace = [dist, udist]
     var ntext = repArray(notifyText, find, replace)
 
+    if (isLured) {
+        ntitle += " (lured)"
+    }
+
     return {
         'fav_title': ntitle,
         'fav_text': ntext
@@ -695,6 +701,8 @@ function getNotifyText(item) {
 }
 
 function customizePokemonMarker(marker, item, skipNotification) {
+    var isLured = item['pokestop_id'] !== null
+
     marker.addListener('click', function () {
         this.setAnimation(null)
         this.animationDisabled = true
@@ -705,7 +713,7 @@ function customizePokemonMarker(marker, item, skipNotification) {
     }
 
     marker.infoWindow = new google.maps.InfoWindow({
-        content: pokemonLabel(item['pokemon_name'], item['pokemon_rarity'], item['pokemon_types'], item['disappear_time'], item['pokemon_id'], item['latitude'], item['longitude'], item['encounter_id'], item['individual_attack'], item['individual_defense'], item['individual_stamina'], item['move_1'], item['move_2']),
+        content: pokemonLabel(item['pokemon_name'], item['pokemon_rarity'], item['pokemon_types'], item['disappear_time'], item['pokemon_id'], item['latitude'], item['longitude'], item['encounter_id'], item['individual_attack'], item['individual_defense'], item['individual_stamina'], item['move_1'], item['move_2'], isLured),
         disableAutoPan: true
     })
 
