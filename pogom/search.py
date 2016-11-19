@@ -270,6 +270,9 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
     account_queue = Queue()
     threadStatus = {}
 
+    # Randomize order of account login
+    args.accounts.sort(key=lambda x: random.random())
+
     '''
     Create a queue of accounts for workers to pull from. When a worker has failed too many times,
     it can get a new account from the queue and reinitialize the API. Workers should return accounts
@@ -798,6 +801,7 @@ def map_request(api, position, jitter=False):
 
     except Exception as e:
         log.warning('Exception while downloading map: %s', e)
+        log.error(e, exc_info=True)
         return False
 
 

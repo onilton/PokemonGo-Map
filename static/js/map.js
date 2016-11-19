@@ -738,8 +738,8 @@ function setupPokestopMarker (item) {
 }
 
 function getColorByDate (value) {
-  // Changes the color from red to green over 15 mins
-  var diff = (Date.now() - value) / 1000 / 60 / 15
+  // Changes the color from red to green over 30 mins
+  var diff = (Date.now() - value) / 1000 / 60 / 30
 
   if (diff > 1) {
     diff = 1
@@ -915,8 +915,8 @@ function clearStaleMarkers () {
   })
 
   $.each(mapData.scanned, function (key, value) {
-    // If older than 15mins remove
-    if (mapData.scanned[key]['last_modified'] < (new Date().getTime() - 15 * 60 * 1000)) {
+    // If older than 30mins remove
+    if (mapData.scanned[key]['last_modified'] < (new Date().getTime() - 30 * 60 * 1000)) {
       mapData.scanned[key].marker.setMap(null)
       delete mapData.scanned[key]
     }
