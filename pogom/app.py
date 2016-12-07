@@ -37,6 +37,7 @@ class Pogom(Flask):
         self.route("/stats", methods=['GET'])(self.get_stats)
         self.route("/status", methods=['GET'])(self.get_status)
         self.route("/status", methods=['POST'])(self.post_status)
+        self.route("/gym_data", methods=['GET'])(self.get_gymdata)
         self.route("/inject.js", methods=['GET'])(self.render_inject_js)
         self.route("/add_token", methods=['GET'])(self.add_token)
         self.route("/get_token", methods=['GET'])(self.get_token)
@@ -109,9 +110,15 @@ class Pogom(Flask):
         search_display = "inline" if args.search_control and args.on_demand_timeout <= 0 else "none"
         scan_display = "none" if (args.only_server or args.fixed_location or args.spawnpoint_scanning) else "inline"
 
+        map_lat = self.current_location[0]
+        map_lng = self.current_location[1]
+        if request.args and not args.fixed_location:
+            map_lat = request.args.get('lat') or self.current_location[0]
+            map_lng = request.args.get('lon') or self.current_location[1]
+
         return render_template('map.html',
-                               lat=self.current_location[0],
-                               lng=self.current_location[1],
+                               lat=map_lat,
+                               lng=map_lng,
                                gmaps_key=config['GMAPS_KEY'],
                                lang=config['LOCALE'],
                                is_fixed=fixed_display,
@@ -386,6 +393,12 @@ class Pogom(Flask):
                                gmaps_key=config['GMAPS_KEY'],
                                valid_input=self.get_valid_stat_input()
                                )
+
+    def get_gymdata(self):
+        gym_id = request.args.get('id')
+        gym = Gym.get_gym(gym_id)
+
+        return jsonify(gym)
 
     def get_status(self):
         args = get_args()
