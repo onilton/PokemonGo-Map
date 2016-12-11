@@ -1685,66 +1685,50 @@ def hex_bounds(center, steps=None, radius=None):
 
 
 def construct_pokemon_dict(pokemons, p, encounter_result, disappear_time, lure_info=None):
-    if lure_info is not None:
-        pokemons[lure_info['encounter_id']] = {
-            'encounter_id': b64encode(str(lure_info['encounter_id'])),
-            'spawnpoint_id': None,
-            'pokestop_id': b64encode(str(p['id'])),
-            'pokemon_id': lure_info['active_pokemon_id'],
-            'latitude': p['latitude'],
-            'longitude': p['longitude'],
-            'disappear_time': disappear_time,
-            'individual_attack': None,
-            'individual_defense': None,
-            'individual_stamina': None,
-            'move_1': None,
-            'move_2': None
-        }
+    if lure_info is None:
+        encounter_id = p['encounter_id']
+        spawnpoint_id = p['spawn_point_id']
+        pokestop_id = None
+        pokemon_id = p['pokemon_data']['pokemon_id']
+    else:
+        encounter_id = lure_info['encounter_id']
+        spawnpoint_id = None
+        pokestop_id = b64encode(str(p['id']))
+        pokemon_id = lure_info['active_pokemon_id']
 
-        if (encounter_result is not None and
-                encounter_result['responses']['DISK_ENCOUNTER']['result'] == 1):
+    pokemons[encounter_id] = {
+        'encounter_id': b64encode(str(encounter_id)),
+        'spawnpoint_id': spawnpoint_id,
+        'pokestop_id': pokestop_id,
+        'pokemon_id': pokemon_id,
+        'latitude': p['latitude'],
+        'longitude': p['longitude'],
+        'disappear_time': disappear_time,
+        'individual_attack': None,
+        'individual_defense': None,
+        'individual_stamina': None,
+        'move_1': None,
+        'move_2': None
+    }
+
+    pokemon_info = None
+    if encounter_result is not None:
+        if lure_info is not None and encounter_result['responses'][
+                'DISK_ENCOUNTER']['result'] == 1:
             pokemon_info = encounter_result['responses'][
                 'DISK_ENCOUNTER']['pokemon_data']
-            pokemons[lure_info['encounter_id']].update({
-                'individual_attack': pokemon_info.get(
-                    'individual_attack', 0),
-                'individual_defense': pokemon_info.get(
-                    'individual_defense', 0),
-                'individual_stamina': pokemon_info.get(
-                    'individual_stamina', 0),
-                'move_1': pokemon_info['move_1'],
-                'move_2': pokemon_info['move_2'],
-            })
-    else:
-        pokemons[p['encounter_id']] = {
-            'encounter_id': b64encode(str(p['encounter_id'])),
-            'spawnpoint_id': p['spawn_point_id'],
-            'pokestop_id': None,
-            'pokemon_id': p['pokemon_data']['pokemon_id'],
-            'latitude': p['latitude'],
-            'longitude': p['longitude'],
-            'disappear_time': disappear_time,
-            'individual_attack': None,
-            'individual_defense': None,
-            'individual_stamina': None,
-            'move_1': None,
-            'move_2': None
-        }
+        if lure_info is None and 'wild_pokemon' in encounter_result['responses']['ENCOUNTER']:
+            pokemon_info = encounter_result['responses']['ENCOUNTER'][
+                'wild_pokemon']['pokemon_data']
 
-        if (encounter_result is not None and 'wild_pokemon'
-                in encounter_result['responses']['ENCOUNTER']):
-            pokemon_info = encounter_result['responses'][
-                'ENCOUNTER']['wild_pokemon']['pokemon_data']
-            pokemons[p['encounter_id']].update({
-                'individual_attack': pokemon_info.get(
-                    'individual_attack', 0),
-                'individual_defense': pokemon_info.get(
-                    'individual_defense', 0),
-                'individual_stamina': pokemon_info.get(
-                    'individual_stamina', 0),
-                'move_1': pokemon_info['move_1'],
-                'move_2': pokemon_info['move_2'],
-            })
+    if pokemon_info is not None:
+        pokemons[encounter_id].update({
+            'individual_attack': pokemon_info.get('individual_attack', 0),
+            'individual_defense': pokemon_info.get('individual_defense', 0),
+            'individual_stamina': pokemon_info.get('individual_stamina', 0),
+            'move_1': pokemon_info['move_1'],
+            'move_2': pokemon_info['move_2'],
+        })
 
 
 # todo: this probably shouldn't _really_ be in "models" anymore, but w/e.
