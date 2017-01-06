@@ -26,7 +26,7 @@ from pogom.search import search_overseer_thread
 from pogom.models import init_database, create_tables, drop_tables, Pokemon, db_updater, clean_db_loop
 from pogom.webhook import wh_updater
 
-from pogom.proxy import check_proxies
+from pogom.proxy import check_proxies, proxies_refresher
 
 # Currently supported pgoapi.
 pgoapi_version = "1.1.7"
@@ -162,6 +162,9 @@ def main():
         log.debug('Looking up coordinates in API')
         position = util.get_pos_by_name(args.location)
 
+    if position is None or not any(position):
+        log.error("Location not found: '{}'".format(args.location))
+        sys.exit()
     # Use the latitude and longitude to get the local altitude from Google.
     try:
         url = 'https://maps.googleapis.com/maps/api/elevation/json?locations={},{}'.format(
@@ -171,10 +174,6 @@ def main():
         position = (position[0], position[1], altitude)
     except (requests.exceptions.RequestException, IndexError, KeyError):
         log.error('Unable to retrieve altitude from Google APIs; setting to 0')
-
-    if not any(position):
-        log.error('Could not get a position by name, aborting!')
-        sys.exit()
 
     log.info('Parsed location is: %.4f/%.4f/%.4f (lat/lng/alt)',
              position[0], position[1], position[2])
@@ -221,7 +220,7 @@ def main():
     # Thread(s) to process database updates.
     for i in range(args.db_threads):
         log.debug('Starting db-updater worker thread %d', i)
-        t = Thread(target=db_updater, name='db-updater-{}'.format(i), args=(args, db_updates_queue))
+        t = Thread(target=db_updater, name='db-updater-{}'.format(i), args=(args, db_updates_queue, db))
         t.daemon = True
         t.start()
 
@@ -243,11 +242,16 @@ def main():
 
     if not args.only_server:
 
-        # Check all proxies before continue so we know they are good.
-        if args.proxy and not args.proxy_skip_check:
+        # Processing proxies if set (load from file, check and overwrite old args.proxy with new working list)
+        args.proxy = check_proxies(args)
 
-            # Overwrite old args.proxy with new working list.
-            args.proxy = check_proxies(args)
+        # Run periodical proxy refresh thread
+        if (args.proxy_file is not None) and (args.proxy_refresh > 0):
+            t = Thread(target=proxies_refresher, name='proxy-refresh', args=(args,))
+            t.daemon = True
+            t.start()
+        else:
+            log.info('Periodical proxies refresh disabled.')
 
         # Gather the Pokemon!
 
