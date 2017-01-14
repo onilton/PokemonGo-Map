@@ -111,20 +111,8 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue, wh_
     t.daemon = True
     t.start()
 
-    statstimer = 0
-
     while True:
         time.sleep(1)
-
-        if display_type[0] == 'logs':
-            # If enabled, display statistics information into logs on a periodic basis.
-            if logtimer:
-                statstimer += 1
-                if statstimer == logtimer:
-                    log.info(get_stats_message(threadStatus))
-                    statstimer = 0
-            # Otherwise, in log display mode we don't want to show anything.
-            continue
 
         # Create a list to hold all the status lines, so they can be printed
         # all at once to reduce flicker.
@@ -397,6 +385,8 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
     # what have changed since the last check
     last_account_status = {}
 
+    stats_timer = 0
+
     # The real work starts here but will halt on pause_bit.set().
     while True:
 
@@ -451,6 +441,14 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
         update_total_stats(threadStatus, last_account_status)
         threadStatus['Overseer']['message'] += '\n' + get_stats_message(
             threadStatus)
+
+        # If enabled, display statistics information into logs on a
+        # periodic basis.
+        if args.stats_log_timer:
+            stats_timer += 1
+            if stats_timer == args.stats_log_timer:
+                log.info(get_stats_message(threadStatus))
+                stats_timer = 0
 
         # Now we just give a little pause here.
         time.sleep(1)
