@@ -957,6 +957,7 @@ class MainWorker(BaseModel):
     message = CharField()
     method = CharField(max_length=50)
     last_modified = DateTimeField(index=True)
+    stats = TextField(null=True, default="")
 
 
 class WorkerStatus(BaseModel):
@@ -2183,5 +2184,6 @@ def database_migrate(db, old_ver):
 
     if old_ver < 12:
         migrate(
-            migrator.add_column('workerstatus', 'captcha', IntegerField(default=0))
+            migrator.add_column('workerstatus', 'captcha', IntegerField(default=0)),
+            migrator.add_column('mainworker', 'stats', TextField(default=""))
         )

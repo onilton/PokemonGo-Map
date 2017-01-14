@@ -53,6 +53,15 @@ log = logging.getLogger(__name__)
 
 TIMESTAMP = '\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000'
 
+starttime = now()
+last_account_status = {}
+skip_total = 0
+captchacount = 0
+successcount = 0
+failcount = 0
+emptycount = 0
+elapsed = 0
+
 
 # Apply a location jitter.
 def jitterLocation(location=None, maxMeters=10):
@@ -97,8 +106,7 @@ def switch_status_printer(display_type, current_page, mainlog, loglevel):
 
 
 # Thread to print out the status of each worker.
-def status_printer(threadStatus, search_items_queue_array, db_updates_queue, wh_queue, account_queue, account_failures):
-    starttime = now()
+def status_printer(threadStatus, search_items_queue_array, db_updates_queue, wh_queue, account_queue, account_failures, logtimer):
     display_type = ["workers"]
     current_page = [1]
     # Grab current log / level.
@@ -112,19 +120,19 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue, wh_
     t.daemon = True
     t.start()
 
-    skip_total = 0
-    captchacount = 0
-    successcount = 0
-    failcount = 0
-    emptycount = 0
-
-    last_account_status = {}
+    statstimer = 0
 
     while True:
         time.sleep(1)
 
         if display_type[0] == 'logs':
-            # In log display mode, we don't want to show anything.
+            # If enabled, display statistics information into logs on a periodic basis.
+            if logtimer:
+                statstimer += 1
+                if statstimer == logtimer:
+                    log.info(get_stats_message(threadStatus))
+                    statstimer = 0
+            # Otherwise, in log display mode we don't want to show anything.
             continue
 
         # Create a list to hold all the status lines, so they can be printed
@@ -143,39 +151,6 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue, wh_
             if usable_height < 1:
                 usable_height = 1
 
-            # Calculate totals.
-            usercount = 0
-            current_accounts = Set()
-            for tstatus in threadStatus.itervalues():
-                if tstatus.get('type', '') == 'Worker':
-                    usercount += 1
-                    username = tstatus.get('username', '')
-                    current_accounts.add(username)
-                    last_status = last_account_status.get(username, {})
-                    skip_total += stat_delta(tstatus, last_status, 'skip')
-                    captchacount += stat_delta(tstatus, last_status, 'captcha')
-                    emptycount += stat_delta(tstatus, last_status, 'noitems')
-                    failcount += stat_delta(tstatus, last_status, 'fail')
-                    successcount += stat_delta(tstatus, last_status, 'success')
-                    last_account_status[username] = copy.deepcopy(tstatus)
-
-            # Remove last status for accounts that workers
-            # are not using anymore
-            for username in last_account_status.keys():
-                if username not in current_accounts:
-                    del last_account_status[username]
-
-            elapsed = now() - starttime
-            if elapsed == 0:
-                elapsed = 1  # Just to prevent division by 0 errors, set elapsed to 1 millisecond
-            sph = successcount * 3600 / elapsed
-            fph = failcount * 3600 / elapsed
-            eph = emptycount * 3600 / elapsed
-            skph = skip_total * 3600 / elapsed
-            cph = captchacount * 3600 / elapsed
-            ccost = cph * 0.00299
-            cmonth = ccost * 730
-
             # Print the queue length.
             search_items_queue_size = 0
             for i in range(0, len(search_items_queue_array)):
@@ -186,7 +161,7 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue, wh_
 
             # Print status of overseer.
             status_text.append('{} Overseer: {}'.format(threadStatus['Overseer'][
-                               'scheduler'], threadStatus['Overseer']['message']))
+                               'scheduler'], threadStatus['Overseer']['message'] + '\n' + threadStatus['Overseer']['stats']))
 
             # Calculate the total number of pages.  Subtracting for the
             # overseer.
@@ -255,8 +230,6 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue, wh_
                 status_text.append(status.format(account['account']['username'], time.strftime(
                     '%H:%M:%S', time.localtime(account['last_fail_time'])), account['reason']))
 
-        # Print the status_text for the current screen.
-        status_text.append('Total active: {}  |  Success: {} ({}/hr) | Fails: {} ({}/hr) | Empties: {} ({}/hr) | Skips {} ({}/hr) | Captchas: {} ({}/hr)|${:2}/hr|${:2}/mo'.format(usercount, successcount, sph, failcount, fph, emptycount, eph, skip_total, skph, captchacount, cph, ccost, cmonth))
         status_text.append(
             'Page {}/{}. Page number to switch pages. F to show on hold accounts. <ENTER> alone to switch between status and log view'.format(current_page[0], total_pages))
         # Clear the screen.
@@ -308,6 +281,7 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
                     'worker_name': name,
                     'message': status['message'],
                     'method': status['scheduler'],
+                    'stats': status['stats'],
                     'last_modified': datetime.utcnow()
                 }
             elif status['type'] == 'Worker':
@@ -345,6 +319,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
     threadStatus['Overseer'] = {
         'message': 'Initializing',
         'type': 'Overseer',
+        'stats': '',
         'scheduler': args.scheduler
     }
 
@@ -352,7 +327,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
         log.info('Starting status printer thread...')
         t = Thread(target=status_printer,
                    name='status_printer',
-                   args=(threadStatus, search_items_queue_array, db_updates_queue, wh_queue, account_queue, account_failures))
+                   args=(threadStatus, search_items_queue_array, db_updates_queue, wh_queue, account_queue, account_failures, args.stats_log_timer))
         t.daemon = True
         t.start()
 
@@ -469,9 +444,56 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
             else:
                 threadStatus['Overseer']['message'] = scheduler_array[
                     i].get_overseer_message()
+                threadStatus['Overseer']['stats'] = get_stats_message(threadStatus)
 
         # Now we just give a little pause here.
         time.sleep(1)
+
+
+def get_stats_message(threadStatus):
+
+    global skip_total
+    global captchacount
+    global successcount
+    global failcount
+    global emptycount
+
+    # Calculate totals.
+    usercount = 0
+    current_accounts = Set()
+    for tstatus in threadStatus.itervalues():
+        if tstatus.get('type', '') == 'Worker':
+            usercount += 1
+            username = tstatus.get('username', '')
+            current_accounts.add(username)
+            last_status = last_account_status.get(username, {})
+            skip_total += stat_delta(tstatus, last_status, 'skip')
+            captchacount += stat_delta(tstatus, last_status, 'captcha')
+            emptycount += stat_delta(tstatus, last_status, 'noitems')
+            failcount += stat_delta(tstatus, last_status, 'fail')
+            successcount += stat_delta(tstatus, last_status, 'success')
+            last_account_status[username] = copy.deepcopy(tstatus)
+
+    # Remove last status for accounts that workers
+    # are not using anymore
+    for username in last_account_status.keys():
+        if username not in current_accounts:
+            del last_account_status[username]
+
+    elapsed = now() - starttime
+    if elapsed == 0:
+        elapsed = 1  # Just to prevent division by 0 errors, set elapsed to 1 millisecond
+
+    sph = successcount * 3600 / elapsed
+    fph = failcount * 3600 / elapsed
+    eph = emptycount * 3600 / elapsed
+    skph = skip_total * 3600 / elapsed
+    cph = captchacount * 3600 / elapsed
+    ccost = cph * 0.00299
+    cmonth = ccost * 730
+
+    message = 'Total active: {}  |  Success: {} ({}/hr) | Fails: {} ({}/hr) | Empties: {} ({}/hr) | Skips {} ({}/hr) | Captchas: {} ({}/hr)|${:2}/hr|${:2}/mo'.format(usercount, successcount, sph, failcount, fph, emptycount, eph, skip_total, skph, captchacount, cph, ccost, cmonth)
+    return message
 
 
 # Generates the list of locations to scan.
