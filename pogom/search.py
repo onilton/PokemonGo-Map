@@ -53,15 +53,6 @@ log = logging.getLogger(__name__)
 
 TIMESTAMP = '\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000'
 
-starttime = now()
-last_account_status = {}
-skip_total = 0
-captchacount = 0
-successcount = 0
-failcount = 0
-emptycount = 0
-elapsed = 0
-
 
 # Apply a location jitter.
 def jitterLocation(location=None, maxMeters=10):
@@ -156,6 +147,7 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue, wh_
             for i in range(0, len(search_items_queue_array)):
                 search_items_queue_size += search_items_queue_array[i].qsize()
 
+            skip_total = threadStatus['Overseer']['skip_total']
             status_text.append('Queues: {} search items, {} db updates, {} webhook.  Total skipped items: {}. Spare accounts available: {}. Accounts on hold: {}'
                                .format(search_items_queue_size, db_updates_queue.qsize(), wh_queue.qsize(), skip_total, account_queue.qsize(), len(account_failures)))
 
@@ -320,6 +312,13 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
         'message': 'Initializing',
         'type': 'Overseer',
         'stats': '',
+        'starttime': now(),
+        'active_accounts': 0,
+        'skip_total': 0,
+        'captcha_total': 0,
+        'success_total': 0,
+        'fail_total': 0,
+        'empty_total': 0,
         'scheduler': args.scheduler
     }
 
@@ -395,6 +394,10 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
     # A place to track the current location.
     current_location = False
 
+    # Keep track of the last status for accounts so we can calculate
+    # what have changed since the last check
+    last_account_status = {}
+
     # The real work starts here but will halt on pause_bit.set().
     while True:
 
@@ -426,6 +429,9 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
                 scheduler_array[i].location_changed(
                     locations[i], db_updates_queue)
 
+        # Let's update the total stats
+        update_total_stats(threadStatus, last_account_status)
+
         # If there are no search_items_queue either the loop has finished or it's been
         # cleared above.  Either way, time to fill it back up.
         for i in range(0, len(scheduler_array)):
@@ -451,12 +457,37 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
 
 
 def get_stats_message(threadStatus):
+    overseer = threadStatus['Overseer']
+    starttime = overseer['starttime']
+    elapsed = now() - starttime
+    if elapsed == 0:
+        elapsed = 1  # Just to prevent division by 0 errors, set elapsed to 1 millisecond
 
-    global skip_total
-    global captchacount
-    global successcount
-    global failcount
-    global emptycount
+    sph = overseer['success_total'] * 3600 / elapsed
+    fph = overseer['fail_total'] * 3600 / elapsed
+    eph = overseer['empty_total'] * 3600 / elapsed
+    skph = overseer['skip_total'] * 3600 / elapsed
+    cph = overseer['captcha_total'] * 3600 / elapsed
+    ccost = cph * 0.00299
+    cmonth = ccost * 730
+
+    message = ('Total active: {}  |  Success: {} ({}/hr) | ' +
+               'Fails: {} ({}/hr) | Empties: {} ({}/hr) | ' +
+               'Skips {} ({}/hr) | ' +
+               'Captchas: {} ({}/hr)|${:2}/hr|${:2}/mo').format(
+                   overseer['active_accounts'],
+                   overseer['success_total'], sph,
+                   overseer['fail_total'], fph,
+                   overseer['empty_total'], eph,
+                   overseer['skip_total'], skph,
+                   overseer['captcha_total'], cph,
+                   ccost, cmonth)
+
+    return message
+
+
+def update_total_stats(threadStatus, last_account_status):
+    overseer = threadStatus['Overseer']
 
     # Calculate totals.
     usercount = 0
@@ -467,33 +498,20 @@ def get_stats_message(threadStatus):
             username = tstatus.get('username', '')
             current_accounts.add(username)
             last_status = last_account_status.get(username, {})
-            skip_total += stat_delta(tstatus, last_status, 'skip')
-            captchacount += stat_delta(tstatus, last_status, 'captcha')
-            emptycount += stat_delta(tstatus, last_status, 'noitems')
-            failcount += stat_delta(tstatus, last_status, 'fail')
-            successcount += stat_delta(tstatus, last_status, 'success')
+            overseer['skip_total'] += stat_delta(tstatus, last_status, 'skip')
+            overseer['captcha_total'] += stat_delta(tstatus, last_status, 'captcha')
+            overseer['empty_total'] += stat_delta(tstatus, last_status, 'noitems')
+            overseer['fail_total'] += stat_delta(tstatus, last_status, 'fail')
+            overseer['success_total'] += stat_delta(tstatus, last_status, 'success')
             last_account_status[username] = copy.deepcopy(tstatus)
+
+    overseer['active_accounts'] = usercount
 
     # Remove last status for accounts that workers
     # are not using anymore
     for username in last_account_status.keys():
         if username not in current_accounts:
             del last_account_status[username]
-
-    elapsed = now() - starttime
-    if elapsed == 0:
-        elapsed = 1  # Just to prevent division by 0 errors, set elapsed to 1 millisecond
-
-    sph = successcount * 3600 / elapsed
-    fph = failcount * 3600 / elapsed
-    eph = emptycount * 3600 / elapsed
-    skph = skip_total * 3600 / elapsed
-    cph = captchacount * 3600 / elapsed
-    ccost = cph * 0.00299
-    cmonth = ccost * 730
-
-    message = 'Total active: {}  |  Success: {} ({}/hr) | Fails: {} ({}/hr) | Empties: {} ({}/hr) | Skips {} ({}/hr) | Captchas: {} ({}/hr)|${:2}/hr|${:2}/mo'.format(usercount, successcount, sph, failcount, fph, emptycount, eph, skip_total, skph, captchacount, cph, ccost, cmonth)
-    return message
 
 
 # Generates the list of locations to scan.
