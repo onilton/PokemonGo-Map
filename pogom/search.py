@@ -152,8 +152,9 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue, wh_
                                .format(search_items_queue_size, db_updates_queue.qsize(), wh_queue.qsize(), skip_total, account_queue.qsize(), len(account_failures)))
 
             # Print status of overseer.
-            status_text.append('{} Overseer: {}'.format(threadStatus['Overseer'][
-                               'scheduler'], threadStatus['Overseer']['message'] + '\n' + threadStatus['Overseer']['stats']))
+            status_text.append('{} Overseer: {}'.format(
+                threadStatus['Overseer']['scheduler'],
+                threadStatus['Overseer']['message']))
 
             # Calculate the total number of pages.  Subtracting for the
             # overseer.
@@ -273,7 +274,6 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
                     'worker_name': name,
                     'message': status['message'],
                     'method': status['scheduler'],
-                    'stats': status['stats'],
                     'last_modified': datetime.utcnow()
                 }
             elif status['type'] == 'Worker':
@@ -311,7 +311,6 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
     threadStatus['Overseer'] = {
         'message': 'Initializing',
         'type': 'Overseer',
-        'stats': '',
         'starttime': now(),
         'active_accounts': 0,
         'skip_total': 0,
@@ -429,9 +428,6 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
                 scheduler_array[i].location_changed(
                     locations[i], db_updates_queue)
 
-        # Let's update the total stats
-        update_total_stats(threadStatus, last_account_status)
-
         # If there are no search_items_queue either the loop has finished or it's been
         # cleared above.  Either way, time to fill it back up.
         for i in range(0, len(scheduler_array)):
@@ -450,7 +446,11 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
             else:
                 threadStatus['Overseer']['message'] = scheduler_array[
                     i].get_overseer_message()
-                threadStatus['Overseer']['stats'] = get_stats_message(threadStatus)
+
+        # Let's update the total stats and add that info to message
+        update_total_stats(threadStatus, last_account_status)
+        threadStatus['Overseer']['message'] += '\n' + get_stats_message(
+            threadStatus)
 
         # Now we just give a little pause here.
         time.sleep(1)
