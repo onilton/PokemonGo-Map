@@ -114,6 +114,10 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue, wh_
     while True:
         time.sleep(1)
 
+        if display_type[0] == 'logs':
+            # In log display mode, we don't want to show anything.
+            continue
+
         # Create a list to hold all the status lines, so they can be printed
         # all at once to reduce flicker.
         status_text = []
