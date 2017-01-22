@@ -1565,6 +1565,7 @@ class Token(flaskDb.Model):
 
     @staticmethod
     def get_match(request_time):
+        token = None
         with flaskDb.database.transaction():
             d_token = (Token
                        .select()
@@ -1572,8 +1573,26 @@ class Token(flaskDb.Model):
                        .order_by(Token.last_updated)
                        .first())
             if d_token is not None:
+                token = d_token.token
                 d_token.delete_instance()
-        return d_token
+        return token
+
+    @staticmethod
+    def get_valid():
+        valid_time = datetime.utcnow() - 40
+        with flaskDb.database.transaction():
+            query = (Token
+                     .select()
+                     .where(Token.last_updated > valid_time)
+                     .order_by(Token.last_updated.asc()))
+            tokens = []
+            for i in range(0, len(query)):
+                tokens.append(query[i].token)
+
+            DeleteQuery(Token).where(
+                         Token.token << tokens).execute()
+
+        return tokens
 
 
 def hex_bounds(center, steps=None, radius=None):
