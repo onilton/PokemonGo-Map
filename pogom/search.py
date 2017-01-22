@@ -311,8 +311,8 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
                     'proxy_url': proxy_url
                 }
 
-                t = Thread(target=search_worker_thread,
-                           name='search-worker-{}'.format(i),
+                t = Thread(target=captcha_solving_thread,
+                           name='captcha-solver-{}'.format(i),
                            args=(args, account_queue, captcha_queue, captchaStatus[someID]))
                 t.daemon = True
                 t.start()
