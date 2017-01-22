@@ -292,6 +292,7 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
 
     global token_needed
     solveId = 0
+    captchaStatus = {}
 
     while True:
         token_needed = captcha_queue.qsize()
@@ -377,7 +378,6 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
     account_queue = Queue()
     captcha_queue = Queue()
     threadStatus = {}
-    captchaStatus = {}
     key_scheduler = None
 
     '''
