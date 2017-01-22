@@ -1564,9 +1564,9 @@ class Token(flaskDb.Model):
     last_updated = DateTimeField(default=datetime.utcnow)
 
     @staticmethod
-    def get_match(request_time):
+    def get_match():
         token = None
-        valid_time = datetime.utcnow() - timedelta(seconds=10)
+        valid_time = datetime.utcnow() - timedelta(seconds=3)
         with flaskDb.database.transaction():
             d_token = (Token
                        .select()
@@ -1580,20 +1580,23 @@ class Token(flaskDb.Model):
 
     @staticmethod
     def get_valid():
+        valid_time = datetime.utcnow() - timedelta(seconds=30)
+        token_ids = []
         tokens = []
-        valid_time = datetime.utcnow() - timedelta(seconds=10)
         with flaskDb.database.transaction():
             query = (Token
                      .select()
                      .where(Token.last_updated > valid_time)
                      .order_by(Token.last_updated.asc())
                      .limit(4))
-
             for t in query:
+                token_ids.append(t.id)
                 tokens.append(t.token)
-            if not tokens:
-                DeleteQuery(Token).where(
-                         Token.token << tokens).execute()
+            if tokens:
+                log.debug("Retrived Token IDs: {}".format(token_ids))
+                result = DeleteQuery(Token).where(
+                             Token.id << token_ids).execute()
+                log.debug("Tokens deleted: {}".format(result))
 
         return tokens
 

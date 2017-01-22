@@ -293,19 +293,18 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
     captchaStatus = {}
 
     while True:
-        # Run once every 5 seconds.
-        time.sleep(5)
+        # Run once every 10 seconds.
+        time.sleep(10)
 
         tokens_needed = captcha_queue.qsize()
-
         if tokens_needed > 0:
             tokens = Token.get_valid()
-            solvers = min(token_needed, len(tokens))
-            log.info('Accounts on hold with captcha: %d', tokens_needed)
-
+            tokens_available = len(tokens)
+            solvers = min(tokens_needed, tokens_available)
+            log.info('Accounts on hold with captcha: %d - tokens available: %d',
+                     tokens_needed, tokens_available)
             for i in range(0, solvers):
                 captcha = captcha_queue.get()
-
                 captchaStatus[solverId] = {
                     'type': 'Solver',
                     'message': 'Creating captcha solving thread...',
@@ -317,12 +316,14 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
 
                 t = Thread(target=captcha_solving_thread,
                            name='captcha-solver-{}'.format(solverId),
-                           args=(args, account_queue, captcha_queue, captchaStatus[solverId]))
+                           args=(args, account_queue, captcha_queue,
+                                 captchaStatus[solverId]))
                 t.daemon = True
                 t.start()
 
+                captcha_queue.task_done()
                 solverId += 1
-                if solverId > 1000:
+                if solverId > 999:
                     solverId = 0
 
 
@@ -341,6 +342,7 @@ def captcha_solving_thread(args, account_queue, captcha_queue, status):
     else:
         api = PGoApi()
 
+    proxy_url = False
     if args.proxy:
         # Try to fetch a new proxy
         proxy_num, proxy_url = get_new_proxy(args)
@@ -355,7 +357,7 @@ def captcha_solving_thread(args, account_queue, captcha_queue, status):
 
     response = api.verify_challenge(token=captcha_token)
 
-    captcha_queue.task_done()
+
     if 'success' in response['responses']['VERIFY_CHALLENGE']:
         status['message'] = "Account {} successfully uncaptcha'd, returning to active duty.".format(account['username'])
         log.info(status['message'])
@@ -472,9 +474,9 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
 
         t = Thread(target=search_worker_thread,
                    name='search-worker-{}'.format(i),
-                   args=(args, account_queue, account_failures, search_items_queue, pause_bit,
+                   args=(args, account_queue, account_failures, captcha_queue, search_items_queue, pause_bit,
                          threadStatus[workerId],
-                         db_updates_queue, wh_queue, scheduler, key_scheduler, captcha_queue))
+                         db_updates_queue, wh_queue, scheduler, key_scheduler))
         t.daemon = True
         t.start()
 
@@ -677,7 +679,7 @@ def generate_hive_locations(current_location, step_distance, step_limit, hive_co
     return results
 
 
-def search_worker_thread(args, account_queue, account_failures, search_items_queue, pause_bit, status, dbq, whq, scheduler, key_scheduler, captcha_queue):
+def search_worker_thread(args, account_queue, account_failures, captcha_queue, search_items_queue, pause_bit, status, dbq, whq, scheduler, key_scheduler):
 
     log.debug('Search worker thread starting...')
 
@@ -905,13 +907,17 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
                     if len(captcha_url) > 1:
                         status['captcha'] += 1
                         if args.captcha_solving:
-                            if args.captcha_key is not None:
-                                status['message'] = 'Account {} is encountering a captcha, starting 2captcha sequence.'.format(account['username'])
-                            else:
-                                status['message'] = 'Account {} is encountering a captcha, starting manual captcha solving.'.format(account['username'])
+                            if args.captcha_key is None:
+                                status['message'] = 'Account {} is waiting for manual captcha solving...'.format(account['username'])
                                 log.info(status['message'])
-                                captcha_queue.put({'account': account, 'last_step': step_location, 'captcha_url': captcha_url})
+                                account_queue.task_done()
+                                captcha_queue.put({'account': account,
+                                                   'last_step': step_location,
+                                                   'captcha_url': captcha_url})
+                                time.sleep(5)
                                 break
+
+                            status['message'] = 'Account {} is encountering a captcha, starting 2captcha sequence.'.format(account['username'])
                             log.warning(status['message'])
                             captcha_token = token_request(
                                 args, status, captcha_url)
