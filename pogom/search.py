@@ -302,6 +302,7 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
             token = Token.get_match(request_time)
 
             if token is not None:
+                token = token.token
                 #start thread
                 # Set proxy for each worker, using round robin.
                 proxy_display = 'No'
