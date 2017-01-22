@@ -289,49 +289,52 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
         time.sleep(3)
 
 def captcha_overseer_thread(args, account_queue, captcha_queue):
-
-    global token_needed
-    solveId = 0
+    solverId = 0
     captchaStatus = {}
 
     while True:
-        token_needed = captcha_queue.qsize()
-        if captcha_queue.qsize() > 0:
-            request_time = datetime.utcnow()
-            token = Token.get_match(request_time)
+        # Run once every 5 seconds.
+        time.sleep(5)
 
-            if token is not None:
-                #start thread
-                # Set proxy for each worker, using round robin.
-                proxy_display = 'No'
-                proxy_url = False    # Will be assigned inside a search thread.
+        tokens_needed = captcha_queue.qsize()
 
-                captchaStatus[solveId] = {
+        if tokens_needed > 0:
+            tokens = Token.get_valid()
+            solvers = min(token_needed, len(tokens))
+            log.info('Accounts on hold with captcha: %d', tokens_needed)
+
+            for i in range(0, solvers):
+                captcha = captcha_queue.get()
+
+                captchaStatus[solverId] = {
                     'type': 'Solver',
-                    'message': 'Creating solving thread...',
-                    'token': token,
-                    'proxy_display': proxy_display,
-                    'proxy_url': proxy_url
+                    'message': 'Creating captcha solving thread...',
+                    'account': captcha['account'],
+                    'location': captcha['last_step'],
+                    'captcha_url': captcha['captcha_url'],
+                    'token':  tokens[i]
                 }
 
                 t = Thread(target=captcha_solving_thread,
-                           name='captcha-solver-{}'.format(solveId),
-                           args=(args, account_queue, captcha_queue, captchaStatus[solveId]))
+                           name='captcha-solver-{}'.format(solverId),
+                           args=(args, account_queue, captcha_queue, captchaStatus[solverId]))
                 t.daemon = True
                 t.start()
 
-                solveId =+ 1
-                if solveId > 999:
-                    solveId = 0
+                solverId += 1
+                if solverId > 1000:
+                    solverId = 0
 
-        time.sleep(1)
 
 def captcha_solving_thread(args, account_queue, captcha_queue, status):
 
-    account = captcha_queue.get()
-    step_location = account['last_step']
-    account = account['account']
-    log.info('Account {} is next in queue, starting captcha sequence.'.format(account['username']))
+    account = status['account']
+    location = status['location']
+    captcha_url = status['captcha_url']
+    captcha_token = status['token']
+
+    status['message'] = 'Waking up account {} to verify captcha token: {}'.format(account['username'], captcha_token)
+    log.info(status['message'])
 
     if args.mock != '':
         api = FakePogoApi(args.mock)
@@ -339,33 +342,28 @@ def captcha_solving_thread(args, account_queue, captcha_queue, status):
         api = PGoApi()
 
     if args.proxy:
-        # If proxy is not assigned yet or if proxy-rotation is defined
-        # - query for new proxy.
-        if (not status['proxy_url']) or \
-           ((args.proxy_rotation is not None) and (args.proxy_rotation != 'none')):
-            proxy_num, status['proxy_url'] = get_new_proxy(args)
-            if args.proxy_display.upper() != 'FULL':
-                status['proxy_display'] = proxy_num
-            else:
-                status['proxy_display'] = status['proxy_url']
+        # Try to fetch a new proxy
+        proxy_num, proxy_url = get_new_proxy(args)
 
-    if status['proxy_url']:
-        log.debug("Using proxy %s", status['proxy_url'])
-        api.set_proxy(
-            {'http': status['proxy_url'], 'https': status['proxy_url']})
+        if proxy_url:
+            log.debug("Using proxy %s", proxy_url)
+            api.set_proxy({'http': proxy_url, 'https': proxy_url})
 
-    api.set_position(*step_location)
+    api.set_position(*location)
+    status['message'] = 'Logging in...'
+    check_login(args, account, api, location, proxy_url)
 
-    check_login(args, account, api, step_location, status['proxy_url'])
-    captcha_token = status['token']
     response = api.verify_challenge(token=captcha_token)
 
+    captcha_queue.task_done()
     if 'success' in response['responses']['VERIFY_CHALLENGE']:
-        log.info("Account {} successfully uncaptcha'd, returning to active duty.".format(account['username']))
+        status['message'] = "Account {} successfully uncaptcha'd, returning to active duty.".format(account['username'])
+        log.info(status['message'])
         account_queue.put(account)
     else:
-        log.info("Account {} failed verifyChallenge, putting back in captcha queue.".format(account['username']))
-        captcha_queue.put({'account': account, 'last_step': step_location})
+        status['message'] = 'Account {} failed verifyChallenge, maybe bad/experired token.'.format(account['username'])
+        log.warning(status['message'])
+        captcha_queue.put({'account': account, 'last_step': location, 'captcha_url': captcha_url})
 
 # The main search loop that keeps an eye on the over all process.
 def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updates_queue, wh_queue):
@@ -911,7 +909,7 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
                                 status['message'] = 'Account {} is encountering a captcha, starting 2captcha sequence.'.format(account['username'])
                             else:
                                 status['message'] = 'Account {} is encountering a captcha, starting manual captcha solving.'.format(account['username'])
-                                log.info('Account {} is encountering a captcha, starting manual captcha solving.'.format(account['username']))
+                                log.info(status['message'])
                                 captcha_queue.put({'account': account, 'last_step': step_location, 'captcha_url': captcha_url})
                                 break
                             log.warning(status['message'])
