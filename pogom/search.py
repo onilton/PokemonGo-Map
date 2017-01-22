@@ -909,19 +909,13 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
                                 break
                             log.warning(status['message'])
                             captcha_token = token_request(
-                                args, status, captcha_url, whq)
+                                args, status, captcha_url)
                             if 'ERROR' in captcha_token:
                                 log.warning(
                                     "Unable to resolve captcha, please check your 2captcha API key and/or wallet balance.")
                                 account_failures.append({'account': account, 'last_fail_time': now(
                                 ), 'reason': 'captcha failed to verify'})
                                 break
-                            # elif 'TIMEOUT' in captcha_token:
-                            #     log.warning(
-                            #         "Unable to resolve captcha, timeout waiting for manual captcha token.")
-                            #     account_failures.append({'account': account, 'last_fail_time': now(
-                            #     ), 'reason': 'timeout waiting for manual captcha token'})
-                            #     break
                             else:
                                 status['message'] = 'Retrieved captcha token, attempting to verify challenge for {}.'.format(account[
                                                                                                                              'username'])
@@ -1153,42 +1147,7 @@ def gym_request(api, position, gym):
         log.warning('Exception while downloading gym details: %s', e)
         return False
 
-
-def token_request(args, status, url, whq):
-
-    global token_needed
-    request_time = datetime.utcnow()
-
-    if args.captcha_key is None:
-        token_needed += 1
-        if args.webhooks:
-            whq.put(('token_needed', {"num": token_needed}))
-        while request_time + timedelta(seconds=args.manual_captcha_solving_allowance_time) > datetime.utcnow():
-            tokenLock.acquire()
-            if args.no_server:
-                # multiple instances, use get_token in map
-                s = requests.Session()
-                url = "{}/get_token?request_time={}&password={}".format(args.manual_captcha_solving_domain, request_time, args.manual_captcha_solving_password)
-                token = str(s.get(url).text)
-            else:
-                # single instance, get Token directly
-                token = Token.get_match(request_time)
-                if token is not None:
-                    token = token.token
-                else:
-                    token = ""
-            tokenLock.release()
-            if token != "":
-                token_needed -= 1
-                if args.webhooks:
-                    whq.put(('token_needed', {"num": token_needed}))
-                return token
-            time.sleep(1)
-        token_needed -= 1
-        if args.webhooks:
-            whq.put(('token_needed', {"num": token_needed}))
-        return 'ERROR'
-
+def token_request(args, status, url):
     s = requests.Session()
     # Fetch the CAPTCHA_ID from 2captcha.
     try:
