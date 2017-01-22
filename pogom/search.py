@@ -421,7 +421,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
 
     # Create captcha overseer thread.
     log.info('Starting captcha overseer thread...')
-    t = Thread(target=captcha_overseer, name='captcha-overseer',
+    t = Thread(target=captcha_overseer_thread, name='captcha-overseer',
                args=(args, account_queue, captcha_queue))
     t.daemon = True
     t.start()
