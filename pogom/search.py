@@ -290,8 +290,8 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
 
 def captcha_overseer_thread(args, account_queue, captcha_queue):
 
-global token_needed
-solveId = 0
+    global token_needed
+    solveId = 0
 
     while True:
         token_needed = captcha_queue.qsize()
