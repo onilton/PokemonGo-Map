@@ -377,6 +377,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
     account_queue = Queue()
     captcha_queue = Queue()
     threadStatus = {}
+    captchaStatus = {}
     key_scheduler = None
 
     '''
