@@ -911,6 +911,7 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
                                 status['message'] = 'Account {} is encountering a captcha, starting 2captcha sequence.'.format(account['username'])
                             else:
                                 status['message'] = 'Account {} is encountering a captcha, starting manual captcha solving.'.format(account['username'])
+                                log.info('Account {} is encountering a captcha, starting manual captcha solving.'.format(account['username']))
                                 captcha_queue.put({'account': account, 'last_step': step_location, 'captcha_url': captcha_url})
                                 break
                             log.warning(status['message'])
