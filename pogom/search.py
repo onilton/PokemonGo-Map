@@ -293,8 +293,8 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
     captchaStatus = {}
 
     while True:
-        # Run once every 10 seconds.
-        time.sleep(10)
+        # Run once every 30 seconds.
+        time.sleep(30)
 
         tokens_needed = captcha_queue.qsize()
         if tokens_needed > 0:
@@ -908,7 +908,7 @@ def search_worker_thread(args, account_queue, account_failures, captcha_queue, s
                         status['captcha'] += 1
                         if args.captcha_solving:
                             if args.captcha_key is None:
-                                status['message'] = 'Account {} is waiting for manual captcha solving...'.format(account['username'])
+                                status['message'] = 'Account {} is waiting for manual captcha solving.'.format(account['username'])
                                 log.info(status['message'])
                                 account_queue.task_done()
                                 captcha_queue.put({'account': account,

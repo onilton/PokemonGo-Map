@@ -1564,22 +1564,7 @@ class Token(flaskDb.Model):
     last_updated = DateTimeField(default=datetime.utcnow)
 
     @staticmethod
-    def get_match():
-        token = None
-        valid_time = datetime.utcnow() - timedelta(seconds=3)
-        with flaskDb.database.transaction():
-            d_token = (Token
-                       .select()
-                       .where(Token.last_updated >= valid_time)
-                       .order_by(Token.last_updated)
-                       .first())
-            if d_token is not None:
-                token = d_token.token
-                d_token.delete_instance()
-        return token
-
-    @staticmethod
-    def get_valid():
+    def get_valid(limit=10):
         valid_time = datetime.utcnow() - timedelta(seconds=30)
         token_ids = []
         tokens = []
@@ -1588,7 +1573,7 @@ class Token(flaskDb.Model):
                      .select()
                      .where(Token.last_updated > valid_time)
                      .order_by(Token.last_updated.asc())
-                     .limit(4))
+                     .limit(limit))
             for t in query:
                 token_ids.append(t.id)
                 tokens.append(t.token)
@@ -2205,6 +2190,13 @@ def clean_db_loop(args):
             query = (Pokestop
                      .update(lure_expiration=None, active_fort_modifier=None)
                      .where(Pokestop.lure_expiration < datetime.utcnow()))
+            query.execute()
+
+            # Remove old (unusable) captcha tokens
+            query = (Token
+                     .delete()
+                     .where((Token.last_updated <
+                             (datetime.utcnow() - timedelta(minutes=2)))))
             query.execute()
 
             # If desired, clear old Pokemon spawns.

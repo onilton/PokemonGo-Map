@@ -38,26 +38,12 @@ class Pogom(Flask):
         self.route("/status", methods=['GET'])(self.get_status)
         self.route("/status", methods=['POST'])(self.post_status)
         self.route("/gym_data", methods=['GET'])(self.get_gymdata)
-        self.route("/inject.js", methods=['GET'])(self.render_inject_js)
-        self.route("/add_token", methods=['GET'])(self.add_token)
-        self.route("/get_token", methods=['GET'])(self.get_token)
         self.route("/bookmarklet", methods=['GET'])(self.get_bookmarklet)
+        self.route("/add_token", methods=['GET'])(self.add_token)
+        self.route("/inject.js", methods=['GET'])(self.render_inject_js)
 
     def get_bookmarklet(self):
         return render_template('bookmarklet.html')
-
-    def get_token(self):
-        request_time = request.args.get('request_time')
-        password = request.args.get('password')
-        args = get_args()
-        token = None
-        if password == args.manual_captcha_solving_password:
-            tokenLock.acquire()
-            token = Token.get_match(request_time)
-            tokenLock.release()
-        if token is not None:
-            return token.token
-        return ""
 
     def add_token(self):
         token = request.args.get('token')
