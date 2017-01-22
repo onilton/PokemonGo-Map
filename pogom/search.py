@@ -836,6 +836,12 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
                                 account_failures.append({'account': account, 'last_fail_time': now(
                                 ), 'reason': 'captcha failed to verify'})
                                 break
+                            elif 'TIMEOUT' in captcha_token:
+                                log.warning(
+                                    "Unable to resolve captcha, timeout waiting for manual captcha token.")
+                                account_failures.append({'account': account, 'last_fail_time': now(
+                                ), 'reason': 'timeout waiting for manual captcha token'})
+                                break
                             else:
                                 status['message'] = 'Retrieved captcha token, attempting to verify challenge for {}.'.format(account[
                                                                                                                              'username'])
@@ -1101,7 +1107,7 @@ def token_request(args, status, url, whq):
         token_needed -= 1
         if args.webhooks:
             whq.put(('token_needed', {"num": token_needed}))
-        return 'ERROR'
+        return 'TIMEOUT'
 
     s = requests.Session()
     # Fetch the CAPTCHA_ID from 2captcha.
