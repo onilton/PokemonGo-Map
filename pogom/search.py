@@ -290,16 +290,17 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
 
 def captcha_overseer_thread(args, account_queue, captcha_queue):
 
-    if captcha_queue.qsize() > 0:
-        request_time = datetime.utcnow()
-        token = None
-        token = Token.get_match(request_time)
+    while True:
+        if captcha_queue.qsize() > 0:
+            request_time = datetime.utcnow()
+            token = None
+            token = Token.get_match(request_time)
 
-        if token is not None:
-            #start thread
+            if token is not None:
+                #start thread
 
 
-    time.sleep(1)
+        time.sleep(1)
 
 def captcha_solving_thread(args, account_queue, captcha_queue, status):
 
