@@ -315,12 +315,12 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
                 }
 
                 t = Thread(target=captcha_solving_thread,
-                           name='captcha-solver-{}'.format(solveId),
+                           name='verify-{}'.format(solveId),
                            args=(args, account_queue, captcha_queue, captchaStatus[solveId]))
                 t.daemon = True
                 t.start()
 
-                solveId =+ 1
+                solveId += 1
                 if solveId > 999:
                     solveId = 0
 
