@@ -320,7 +320,9 @@ solveId = 0
                 t.daemon = True
                 t.start()
 
-                solveId =+ 1 # we need to reset this when it reaches the int_limit
+                solveId =+ 1
+                if solveId > 999:
+                    solveId = 0
 
         time.sleep(1)
 
