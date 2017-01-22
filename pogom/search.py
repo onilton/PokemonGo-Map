@@ -290,7 +290,10 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
 
 def captcha_overseer_thread(args, account_queue, captcha_queue):
 
+global token_needed
+
     while True:
+        token_needed = captcha_queue.qsize()
         if captcha_queue.qsize() > 0:
             request_time = datetime.utcnow()
             token = None
