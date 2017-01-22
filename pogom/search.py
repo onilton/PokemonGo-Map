@@ -358,7 +358,6 @@ def captcha_solving_thread(args, account_queue, captcha_queue, status):
     api.set_position(*step_location)
 
     check_login(args, account, api, step_location, status['proxy_url'])
-    captcha_url = account['captcha_url']
     captcha_token = status['token']
     response = api.verify_challenge(token=captcha_token)
 
