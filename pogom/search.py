@@ -302,8 +302,8 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
                 proxy_display = 'No'
                 proxy_url = False    # Will be assigned inside a search thread.
 
-                workerId = 'Worker {:03}'.format(i) #change this to something useful, we can't just count up indefinitely
-                threadStatus[workerId] = {
+                solveId = 'Worker {:03}'.format(i) #change this to something useful, we can't just count up indefinitely
+                captchaStatus[solveId] = {
                     'type': 'Solver',
                     'message': 'Creating solving thread...',
                     'token': token,
@@ -313,7 +313,7 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
 
                 t = Thread(target=captcha_solving_thread,
                            name='captcha-solver-{}'.format(i),
-                           args=(args, account_queue, captcha_queue, captchaStatus[someID]))
+                           args=(args, account_queue, captcha_queue, captchaStatus[solveId]))
                 t.daemon = True
                 t.start()
 
@@ -354,7 +354,7 @@ def captcha_solving_thread(args, account_queue, captcha_queue, status):
             response_dict = map_request(api, step_location, args.no_jitter) # we can remove this
             captcha_url = response_dict['responses']['CHECK_CHALLENGE']['challenge_url'] # and this, as we already have a captcha url we can just add to the account in the queue
 
-            captcha_token = # gotta get this from the overseer (via threadStatus?)
+            captcha_token = status['token']
             response = api.verify_challenge(token=captcha_token)
             if 'success' in response['responses']['VERIFY_CHALLENGE']:
                 log.info("Account {} successfully uncaptcha'd, returning to active duty.".format(account['username']))
