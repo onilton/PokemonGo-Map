@@ -298,6 +298,24 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
 
             if token is not None:
                 #start thread
+                # Set proxy for each worker, using round robin.
+                proxy_display = 'No'
+                proxy_url = False    # Will be assigned inside a search thread.
+
+                workerId = 'Worker {:03}'.format(i) #change this to something useful, we can't just count up indefinitely
+                threadStatus[workerId] = {
+                    'type': 'Solver',
+                    'message': 'Creating solving thread...',
+                    'token': token,
+                    'proxy_display': proxy_display,
+                    'proxy_url': proxy_url
+                }
+
+                t = Thread(target=search_worker_thread,
+                           name='search-worker-{}'.format(i),
+                           args=(args, account_queue, captcha_queue, captchaStatus[someID]))
+                t.daemon = True
+                t.start()
 
 
         time.sleep(1)
