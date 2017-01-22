@@ -351,11 +351,10 @@ def captcha_solving_thread(args, account_queue, captcha_queue, status):
             api.set_position(*step_location)
 
             check_login(args, account, api, step_location, status['proxy_url'])
-            response_dict = map_request(api, step_location, args.no_jitter) # we can remove this
-            captcha_url = response_dict['responses']['CHECK_CHALLENGE']['challenge_url'] # and this, as we already have a captcha url we can just add to the account in the queue
-
+            captcha_url = account['captcha_url']
             captcha_token = status['token']
             response = api.verify_challenge(token=captcha_token)
+
             if 'success' in response['responses']['VERIFY_CHALLENGE']:
                 log.info("Account {} successfully uncaptcha'd, returning to active duty.".format(account['username']))
                 account_queue.put(account)
@@ -471,7 +470,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
                    name='search-worker-{}'.format(i),
                    args=(args, account_queue, account_failures, search_items_queue, pause_bit,
                          threadStatus[workerId],
-                         db_updates_queue, wh_queue, scheduler, key_scheduler))
+                         db_updates_queue, wh_queue, scheduler, key_scheduler, captcha_queue))
         t.daemon = True
         t.start()
 
@@ -674,7 +673,7 @@ def generate_hive_locations(current_location, step_distance, step_limit, hive_co
     return results
 
 
-def search_worker_thread(args, account_queue, account_failures, search_items_queue, pause_bit, status, dbq, whq, scheduler, key_scheduler):
+def search_worker_thread(args, account_queue, account_failures, search_items_queue, pause_bit, status, dbq, whq, scheduler, key_scheduler, captcha_queue):
 
     log.debug('Search worker thread starting...')
 
@@ -906,7 +905,7 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
                                 status['message'] = 'Account {} is encountering a captcha, starting 2captcha sequence.'.format(account['username'])
                             else:
                                 status['message'] = 'Account {} is encountering a captcha, starting manual captcha solving.'.format(account['username'])
-                                captcha_queue.put({'account': account, 'last_step': step_location})
+                                captcha_queue.put({'account': account, 'last_step': step_location, 'captcha_url': captcha_url})
                                 break
                             log.warning(status['message'])
                             captcha_token = token_request(
