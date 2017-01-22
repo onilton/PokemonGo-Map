@@ -364,6 +364,7 @@ def captcha_solving_thread(args, account_queue, captcha_queue, status):
         log.info("Account {} successfully uncaptcha'd, returning to active duty.".format(account['username']))
         account_queue.put(account)
     else:
+        log.info("Account {} failed verifyChallenge, putting back in captcha queue.".format(account['username']))
         captcha_queue.put({'account': account, 'last_step': step_location})
 
 # The main search loop that keeps an eye on the over all process.
