@@ -235,12 +235,17 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue, wh_
 # The account recycler monitors failed accounts and places them back in the account queue 2 hours after they failed.
 # This allows accounts that were soft banned to be retried after giving
 # them a chance to cool down.
-def account_recycler(accounts_queue, account_failures, args):
+def account_recycler(args, status, accounts_queue, captcha_queue, account_failures):
     while True:
         # Run once a minute.
         time.sleep(60)
+        failures = len(account_failures)
         log.info('Account recycler running. Checking status of {} accounts.'.format(
-            len(account_failures)))
+            failures))
+
+        # Update Overseer statistics
+        status['accounts_captcha'] = captcha_queue.qsize()
+        status['accounts_failed'] = failures
 
         # Create a new copy of the failure list to search through, so we can
         # iterate through it without it changing.
@@ -275,7 +280,10 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
                     'worker_name': name,
                     'message': status['message'],
                     'method': status['scheduler'],
-                    'last_modified': datetime.utcnow()
+                    'last_modified': datetime.utcnow(),
+                    'accounts_working': status['active_accounts'],
+                    'accounts_captcha': status['accounts_captcha'],
+                    'accounts_failed': status['accounts_failed']
                 }
             elif status['type'] == 'Worker':
                 workers[status['username']] = WorkerStatus.db_format(
@@ -348,12 +356,13 @@ def captcha_solving_thread(args, account_queue, captcha_queue, status):
             log.debug("Using proxy %s", proxy_url)
             api.set_proxy({'http': proxy_url, 'https': proxy_url})
 
+    # Jitter location up to 100 meters
+    location = jitterLocation(location, 100)
     api.set_position(*location)
     status['message'] = 'Logging in...'
     check_login(args, account, api, location, proxy_url)
 
     response = api.verify_challenge(token=captcha_token)
-
 
     if 'success' in response['responses']['VERIFY_CHALLENGE']:
         status['message'] = "Account {} successfully uncaptcha'd, returning to active duty.".format(account['username'])
@@ -392,6 +401,9 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
         'message': 'Initializing',
         'type': 'Overseer',
         'starttime': now(),
+        'accounts_working': 0,
+        'accounts_captcha': 0,
+        'accounts_failed': 0,
         'active_accounts': 0,
         'skip_total': 0,
         'captcha_total': 0,
@@ -413,7 +425,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb, db_updat
     # Create account recycler thread.
     log.info('Starting account recycler thread...')
     t = Thread(target=account_recycler, name='account-recycler',
-               args=(account_queue, account_failures, args))
+               args=(args, threadStatus['Overseer'], account_queue, captcha_queue, account_failures))
     t.daemon = True
     t.start()
 

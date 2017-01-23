@@ -1034,6 +1034,9 @@ class MainWorker(BaseModel):
     message = TextField(null=True, default="")
     method = CharField(max_length=50)
     last_modified = DateTimeField(index=True)
+    accounts_working = IntegerField()
+    accounts_captcha = IntegerField()
+    accounts_failed = IntegerField()
 
 
 class WorkerStatus(BaseModel):
@@ -1043,7 +1046,7 @@ class WorkerStatus(BaseModel):
     fail = IntegerField()
     no_items = IntegerField()
     skip = IntegerField()
-    captcha = IntegerField(default=0)
+    captcha = IntegerField()
     last_modified = DateTimeField(index=True)
     message = CharField(max_length=255)
     last_scan_date = DateTimeField(index=True)
