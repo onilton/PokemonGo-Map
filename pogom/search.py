@@ -298,12 +298,12 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
     captchaStatus = {}
 
     while True:
-        # Run once every 30 seconds.
-        time.sleep(30)
+        # Run once every 15 seconds.
+        sleep_timer = 15
 
         tokens_needed = captcha_queue.qsize()
         if tokens_needed > 0:
-            tokens = Token.get_valid()
+            tokens = Token.get_valid(tokens_needed)
             tokens_available = len(tokens)
             solvers = min(tokens_needed, tokens_available)
             log.info('Accounts on hold with captcha: %d - tokens available: %d',
@@ -330,6 +330,13 @@ def captcha_overseer_thread(args, account_queue, captcha_queue):
                 solverId += 1
                 if solverId > 999:
                     solverId = 0
+                # Wait a bit before launching next captcha-solver thread
+                time.sleep(1)
+
+            # Adjust captcha-overseer sleep timer
+            sleep_timer -= 1 * solvers
+        log.debug("Waiting %d seconds before next token query...", sleep_timer)
+        time.sleep(sleep_timer)
 
 
 def captcha_solving_thread(args, account_queue, captcha_queue, status):
@@ -339,7 +346,8 @@ def captcha_solving_thread(args, account_queue, captcha_queue, status):
     captcha_url = status['captcha_url']
     captcha_token = status['token']
 
-    status['message'] = 'Waking up account {} to verify captcha token: {}'.format(account['username'], captcha_token)
+    status['message'] = 'Waking up account {} to verify captcha token.'.format(
+                         account['username'])
     log.info(status['message'])
 
     if args.mock != '':
@@ -369,7 +377,7 @@ def captcha_solving_thread(args, account_queue, captcha_queue, status):
         log.info(status['message'])
         account_queue.put(account)
     else:
-        status['message'] = 'Account {} failed verifyChallenge, maybe bad/experired token.'.format(account['username'])
+        status['message'] = 'Account {} failed verifyChallenge, putting back in captcha queue.'.format(account['username'])
         log.warning(status['message'])
         captcha_queue.put({'account': account, 'last_step': location, 'captcha_url': captcha_url})
 

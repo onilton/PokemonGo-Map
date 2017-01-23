@@ -1567,7 +1567,10 @@ class Token(flaskDb.Model):
     last_updated = DateTimeField(default=datetime.utcnow)
 
     @staticmethod
-    def get_valid(limit=10):
+    def get_valid(limit=15):
+        # Make sure we don't grab more than we can process
+        if limit > 15:
+            limit = 15
         valid_time = datetime.utcnow() - timedelta(seconds=30)
         token_ids = []
         tokens = []
