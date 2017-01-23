@@ -667,6 +667,93 @@ def generate_hive_locations(current_location, step_distance,
     return results
 
 
+def enqueue_manual_captcha(account, step_location, captcha_url, account_queue,
+                           captcha_queue, status):
+    status['message'] = ('Account {} is waiting for manual captcha ' +
+                         'solving.').format(account['username'])
+    log.info(status['message'])
+    account_queue.task_done()
+    captcha_queue.put({'account': account,
+                       'last_step': step_location,
+                       'captcha_url': captcha_url})
+    time.sleep(5)
+
+
+# Return True if captcha was succesfully solved
+def automatic_captcha_solve(args, api, captcha_url, account, account_failures,
+                            status):
+    status['message'] = (
+        'Account {} is encountering a captcha, starting 2captcha ' +
+        'sequence.').format(account['username'])
+    log.warning(status['message'])
+
+    captcha_token = token_request(args, status, captcha_url)
+    if 'ERROR' in captcha_token:
+        log.warning("Unable to resolve captcha, please check your " +
+                    "2captcha API key and/or wallet balance.")
+        account_failures.append({
+            'account': account,
+            'last_fail_time': now(),
+            'reason': 'captcha failed to verify'})
+
+        return False
+    else:
+        status['message'] = (
+            'Retrieved captcha token, attempting to verify challenge' +
+            ' for {}.').format(account['username'])
+        log.info(status['message'])
+
+        response = api.verify_challenge(token=captcha_token)
+        if 'success' in response['responses']['VERIFY_CHALLENGE']:
+            status['message'] = "Account {} successfully uncaptcha'd.".format(
+                account['username'])
+            log.info(status['message'])
+
+            return True
+        else:
+            status['message'] = (
+                "Account {} failed verifyChallenge, putting away " +
+                "account for now.").format(account['username'])
+            log.info(status['message'])
+            account_failures.append({
+                'account': account,
+                'last_fail_time': now(),
+                'reason': 'captcha failed to verify'})
+
+            return False
+
+
+# Captcha check: returns captcha_found and captcha_solved
+def check_captcha(args, api, response_dict, account, account_queue,
+                  captcha_queue, account_failures, status):
+    captcha_found = False
+    captcha_solved = False
+
+    captcha_url = response_dict['responses'][
+        'CHECK_CHALLENGE']['challenge_url']
+    if len(captcha_url) > 1:
+        captcha_found = True
+        status['captcha'] += 1
+
+        if args.captcha_solving:
+            if args.captcha_key is None:
+                enqueue_manual_captcha(account_queue, captcha_queue, status)
+            else:
+                captcha_solved = automatic_captcha_solve(
+                    args, api, captcha_url, account, account_failures, status)
+        else:
+            status['message'] = (
+                "Account {} has encountered a captcha, putting away account " +
+                "for now.").format(account['username'])
+            log.info(status['message'])
+            account_failures.append({
+                'account': account,
+                'last_fail_time': now(),
+                'reason': 'captcha found'})
+
+    return (captcha_found, captcha_solved)
+
+
 def search_worker_thread(args, account_queue, captcha_queue, account_failures,
                          search_items_queue, pause_bit, status, dbq, whq,
                          scheduler, key_scheduler):
@@ -911,84 +998,20 @@ def search_worker_thread(args, account_queue, captcha_queue, account_failures,
                 # Got the response, check for captcha, parse it out, then send
                 # todo's to db/wh queues.
                 try:
-                    # Captcha check.
-                    captcha_url = response_dict['responses'][
-                        'CHECK_CHALLENGE']['challenge_url']
-                    if len(captcha_url) > 1:
-                        status['captcha'] += 1
-                        if args.captcha_solving:
-                            if args.captcha_key is None:
-                                status['message'] = 'Account {} is waiting for manual captcha solving.'.format(account['username'])
-                                log.info(status['message'])
-                                account_queue.task_done()
-                                captcha_queue.put({'account': account,
-                                                   'last_step': step_location,
-                                                   'captcha_url': captcha_url})
-                                time.sleep(5)
-                                break
+                    (captcha_found, captcha_solved) = check_captcha(
+                        args, api, response_dict, account, account_queue,
+                        captcha_queue, account_failures, status)
 
-                            status['message'] = (
-                                'Account {} is encountering a captcha, ' +
-                                'starting 2captcha sequence.').format(
-                                    account['username'])
-                            log.warning(status['message'])
-                            captcha_token = token_request(
-                                args, status, captcha_url)
-                            if 'ERROR' in captcha_token:
-                                log.warning(
-                                    "Unable to resolve captcha, please " +
-                                    "check your 2captcha API key and/or " +
-                                    "wallet balance.")
-                                account_failures.append({
-                                    'account': account,
-                                    'last_fail_time': now(),
-                                    'reason': 'captcha failed to verify'})
-                                break
-                            else:
-                                status['message'] = (
-                                    'Retrieved captcha token, attempting to ' +
-                                    'verify challenge for {}.').format(
-                                        account['username'])
-                                log.info(status['message'])
-                                response = api.verify_challenge(
-                                    token=captcha_token)
-                                if 'success' in response[
-                                        'responses']['VERIFY_CHALLENGE']:
-                                    status['message'] = (
-                                        "Account {} successfully " +
-                                        " uncaptcha'd.").format(
-                                            account['username'])
-                                    log.info(status['message'])
-                                    scan_date = datetime.utcnow()
-                                    # Make another request for the same
-                                    # location since the previous one was
-                                    # captcha'd.
-                                    response_dict = map_request(
-                                        api, step_location, args.no_jitter)
-                                    status['last_scan_date'] = (
-                                        datetime.utcnow())
-                                else:
-                                    status['message'] = (
-                                        "Account {} failed verifyChallenge, " +
-                                        "putting away account for " +
-                                        "now.").format(account['username'])
-                                    log.info(status['message'])
-                                    account_failures.append({
-                                        'account': account,
-                                        'last_fail_time': now(),
-                                        'reason': 'captcha failed to verify'})
-                                    break
-                        else:
-                            status['message'] = ("Account {} has encountered" +
-                                                 " a captcha, putting away " +
-                                                 "account for now.").format(
-                                                     account['username'])
-                            log.info(status['message'])
-                            account_failures.append({
-                                'account': account,
-                                'last_fail_time': now(),
-                                'reason': 'captcha found'})
+                    if captcha_found:
+                        if not captcha_solved:
                             break
+                        else:
+                            scan_date = datetime.utcnow()
+                            # Make another request for the same location since
+                            # the previous one was captcha'd.
+                            response_dict = map_request(api, step_location,
+                                                        args.no_jitter)
+                            status['last_scan_date'] = datetime.utcnow()
 
                     parsed = parse_map(args, response_dict, step_location,
                                        dbq, whq, api, scan_date)
