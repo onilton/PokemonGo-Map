@@ -24,8 +24,6 @@ import sys
 import traceback
 import random
 import time
-import geopy
-import geopy.distance
 import requests
 import copy
 
@@ -41,9 +39,10 @@ from pgoapi.exceptions import AuthException
 
 from .models import parse_map, GymDetails, parse_gyms, MainWorker, WorkerStatus, Token
 from .fakePogoApi import FakePogoApi
-from .utils import now, get_tutorial_state, complete_tutorial
+from .utils import now, jitter_location, get_tutorial_state, complete_tutorial
 from .transform import get_new_coords
 import schedulers
+from .captcha import captcha_overseer_thread, token_request
 
 from .proxy import get_new_proxy
 
@@ -55,14 +54,6 @@ TIMESTAMP = ('\000\000\000\000\000\000\000\000\000\000\000' +
              '\000\000\000\000\000\000\000\000\000\000')
 
 loginDelayLock = Lock()
-
-# Apply a location jitter.
-def jitterLocation(location=None, maxMeters=10):
-    origin = geopy.Point(location[0], location[1])
-    b = random.randint(0, 360)
-    d = math.sqrt(random.random()) * (float(maxMeters) / 1000)
-    destination = geopy.distance.distance(kilometers=d).destination(origin, b)
-    return (destination.latitude, destination.longitude, location[2])
 
 
 # Thread to handle user input.
@@ -324,93 +315,6 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
             db_updates_queue.put((WorkerStatus, workers))
         time.sleep(3)
 
-def captcha_overseer_thread(args, account_queue, captcha_queue):
-    solverId = 0
-    captchaStatus = {}
-
-    while True:
-        # Run once every 15 seconds.
-        sleep_timer = 15
-
-        tokens_needed = captcha_queue.qsize()
-        if tokens_needed > 0:
-            tokens = Token.get_valid(tokens_needed)
-            tokens_available = len(tokens)
-            solvers = min(tokens_needed, tokens_available)
-            log.info('Accounts on hold with captcha: %d - tokens available: %d',
-                     tokens_needed, tokens_available)
-            for i in range(0, solvers):
-                captcha = captcha_queue.get()
-                captchaStatus[solverId] = {
-                    'type': 'Solver',
-                    'message': 'Creating captcha solving thread...',
-                    'account': captcha['account'],
-                    'location': captcha['last_step'],
-                    'captcha_url': captcha['captcha_url'],
-                    'token':  tokens[i]
-                }
-
-                t = Thread(target=captcha_solving_thread,
-                           name='captcha-solver-{}'.format(solverId),
-                           args=(args, account_queue, captcha_queue,
-                                 captchaStatus[solverId]))
-                t.daemon = True
-                t.start()
-
-                captcha_queue.task_done()
-                solverId += 1
-                if solverId > 999:
-                    solverId = 0
-                # Wait a bit before launching next captcha-solver thread
-                time.sleep(1)
-
-            # Adjust captcha-overseer sleep timer
-            sleep_timer -= 1 * solvers
-        log.debug("Waiting %d seconds before next token query...", sleep_timer)
-        time.sleep(sleep_timer)
-
-
-def captcha_solving_thread(args, account_queue, captcha_queue, status):
-
-    account = status['account']
-    location = status['location']
-    captcha_url = status['captcha_url']
-    captcha_token = status['token']
-
-    status['message'] = 'Waking up account {} to verify captcha token.'.format(
-                         account['username'])
-    log.info(status['message'])
-
-    if args.mock != '':
-        api = FakePogoApi(args.mock)
-    else:
-        api = PGoApi()
-
-    proxy_url = False
-    if args.proxy:
-        # Try to fetch a new proxy
-        proxy_num, proxy_url = get_new_proxy(args)
-
-        if proxy_url:
-            log.debug("Using proxy %s", proxy_url)
-            api.set_proxy({'http': proxy_url, 'https': proxy_url})
-
-    # Jitter location up to 100 meters
-    location = jitterLocation(location, 100)
-    api.set_position(*location)
-    status['message'] = 'Logging in...'
-    check_login(args, account, api, location, proxy_url)
-
-    response = api.verify_challenge(token=captcha_token)
-
-    if 'success' in response['responses']['VERIFY_CHALLENGE']:
-        status['message'] = "Account {} successfully uncaptcha'd, returning to active duty.".format(account['username'])
-        log.info(status['message'])
-        account_queue.put(account)
-    else:
-        status['message'] = 'Account {} failed verifyChallenge, putting back in captcha queue.'.format(account['username'])
-        log.warning(status['message'])
-        captcha_queue.put({'account': account, 'last_step': location, 'captcha_url': captcha_url})
 
 # The main search loop that keeps an eye on the over all process.
 def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
@@ -1273,7 +1177,7 @@ def map_request(api, position, no_jitter=False):
         scan_location = position
     else:
         # Jitter it, just a little bit.
-        scan_location = jitterLocation(position)
+        scan_location = jitter_location(position)
         log.debug('Jittered to: %f/%f/%f',
                   scan_location[0], scan_location[1], scan_location[2])
 
@@ -1323,35 +1227,6 @@ def gym_request(api, position, gym):
     except Exception as e:
         log.warning('Exception while downloading gym details: %s', e)
         return False
-
-def token_request(args, status, url):
-    s = requests.Session()
-    # Fetch the CAPTCHA_ID from 2captcha.
-    try:
-        request_url = (
-            "http://2captcha.com/in.php?key={}&method=userrecaptcha" +
-            "&googlekey={}&pageurl={}").format(args.captcha_key,
-                                               args.captcha_dsk, url)
-        captcha_id = s.post(request_url).text.split('|')[1]
-        captcha_id = str(captcha_id)
-    # IndexError implies that the retuned response was a 2captcha error.
-    except IndexError:
-        return 'ERROR'
-    status['message'] = (
-        'Retrieved captcha ID: {}; now retrieving token.').format(captcha_id)
-    log.info(status['message'])
-    # Get the response, retry every 5 seconds if it's not ready.
-    recaptcha_response = s.get(
-        "http://2captcha.com/res.php?key={}&action=get&id={}".format(
-            args.captcha_key, captcha_id)).text
-    while 'CAPCHA_NOT_READY' in recaptcha_response:
-        log.info("Captcha token is not ready, retrying in 5 seconds...")
-        time.sleep(5)
-        recaptcha_response = s.get(
-            "http://2captcha.com/res.php?key={}&action=get&id={}".format(
-                args.captcha_key, captcha_id)).text
-    token = str(recaptcha_response.split('|')[1])
-    return token
 
 
 def calc_distance(pos1, pos2):

@@ -11,6 +11,8 @@ import shutil
 import pprint
 import time
 import random
+import geopy
+import geopy.distance
 from s2sphere import CellId, LatLng
 
 from . import config
@@ -647,6 +649,15 @@ def equi_rect_distance(loc1, loc2):
 # Return True if distance between two locs is less than distance in km.
 def in_radius(loc1, loc2, distance):
     return equi_rect_distance(loc1, loc2) < distance
+
+
+# Apply a location jitter.
+def jitter_location(location=None, maxMeters=10):
+    origin = geopy.Point(location[0], location[1])
+    b = random.randint(0, 360)
+    d = math.sqrt(random.random()) * (float(maxMeters) / 1000)
+    destination = geopy.distance.distance(kilometers=d).destination(origin, b)
+    return (destination.latitude, destination.longitude, location[2])
 
 
 def i8ln(word):

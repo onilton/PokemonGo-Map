@@ -1576,20 +1576,23 @@ class Token(flaskDb.Model):
         valid_time = datetime.utcnow() - timedelta(seconds=30)
         token_ids = []
         tokens = []
-        with flaskDb.database.transaction():
-            query = (Token
-                     .select()
-                     .where(Token.last_updated > valid_time)
-                     .order_by(Token.last_updated.asc())
-                     .limit(limit))
-            for t in query:
-                token_ids.append(t.id)
-                tokens.append(t.token)
-            if tokens:
-                log.debug("Retrived Token IDs: {}".format(token_ids))
-                result = DeleteQuery(Token).where(
-                             Token.id << token_ids).execute()
-                log.debug("Tokens deleted: {}".format(result))
+        try:
+            with flaskDb.database.transaction():
+                query = (Token
+                         .select()
+                         .where(Token.last_updated > valid_time)
+                         .order_by(Token.last_updated.asc())
+                         .limit(limit))
+                for t in query:
+                    token_ids.append(t.id)
+                    tokens.append(t.token)
+                if tokens:
+                    log.debug("Retrived Token IDs: {}".format(token_ids))
+                    result = DeleteQuery(Token).where(
+                                 Token.id << token_ids).execute()
+                    log.debug("Tokens deleted: {}".format(result))
+        except OperationalError as e:
+            log.error('Failed captcha token transactional query: {}'.format(e))
 
         return tokens
 
