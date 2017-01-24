@@ -38,6 +38,7 @@ from .proxy import get_new_proxy
 
 log = logging.getLogger(__name__)
 
+
 def captcha_overseer_thread(args, account_queue, captcha_queue):
     solverId = 0
     captchaStatus = {}
@@ -126,6 +127,7 @@ def captcha_solving_thread(args, account_queue, captcha_queue, status):
         log.warning(status['message'])
         captcha_queue.put({'account': account, 'last_step': location, 'captcha_url': captcha_url})
 
+
 def token_request(args, status, url):
     s = requests.Session()
     # Fetch the CAPTCHA_ID from 2captcha.
@@ -154,37 +156,3 @@ def token_request(args, status, url):
                 args.captcha_key, captcha_id)).text
     token = str(recaptcha_response.split('|')[1])
     return token
-
-
-def calc_distance(pos1, pos2):
-    R = 6378.1  # KM radius of the earth.
-
-    dLat = math.radians(pos1[0] - pos2[0])
-    dLon = math.radians(pos1[1] - pos2[1])
-
-    a = math.sin(dLat / 2) * math.sin(dLat / 2) + \
-        math.cos(math.radians(pos1[0])) * math.cos(math.radians(pos2[0])) * \
-        math.sin(dLon / 2) * math.sin(dLon / 2)
-
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    d = R * c
-
-    return d
-
-
-# Delay each thread start time so that logins occur after delay.
-def stagger_thread(args):
-    loginDelayLock.acquire()
-    delay = args.login_delay + ((random.random() - .5) / 2)
-    log.debug('Delaying thread startup for %.2f seconds', delay)
-    time.sleep(delay)
-    loginDelayLock.release()
-
-
-# The delta from last stat to current stat
-def stat_delta(current_status, last_status, stat_name):
-    return current_status.get(stat_name, 0) - last_status.get(stat_name, 0)
-
-
-class TooManyLoginAttempts(Exception):
-    pass
