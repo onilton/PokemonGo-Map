@@ -24,7 +24,6 @@ import sys
 import traceback
 import random
 import time
-import requests
 import copy
 
 from datetime import datetime, timedelta
@@ -37,15 +36,15 @@ from pgoapi.utilities import f2i
 from pgoapi import utilities as util
 from pgoapi.exceptions import AuthException
 
-from .models import parse_map, GymDetails, parse_gyms, MainWorker, WorkerStatus, Token
+from .models import parse_map, GymDetails, parse_gyms, MainWorker, WorkerStatus
 from .fakePogoApi import FakePogoApi
-from .utils import now, jitter_location, get_tutorial_state, complete_tutorial
-from .transform import get_new_coords
-import schedulers
+from .utils import now
+from .transform import get_new_coords, jitter_location
+from .account import check_login, get_tutorial_state, complete_tutorial
 from .captcha import captcha_overseer_thread, token_request
-
 from .proxy import get_new_proxy
 
+import schedulers
 import terminalsize
 
 log = logging.getLogger(__name__)
@@ -1125,48 +1124,6 @@ def search_worker_thread(args, account_queue, captcha_queue, account_failures,
                                      'last_fail_time': now(),
                                      'reason': 'exception'})
             time.sleep(args.scan_delay)
-
-
-def check_login(args, account, api, position, proxy_url):
-
-    # Logged in? Enough time left? Cool!
-    if api._auth_provider and api._auth_provider._ticket_expire:
-        remaining_time = api._auth_provider._ticket_expire / 1000 - time.time()
-        if remaining_time > 60:
-            log.debug(
-                'Credentials remain valid for another %f seconds.',
-                remaining_time)
-            return
-
-    # Try to login. Repeat a few times, but don't get stuck here.
-    i = 0
-    while i < args.login_retries:
-        try:
-            if proxy_url:
-                api.set_authentication(
-                    provider=account['auth_service'],
-                    username=account['username'],
-                    password=account['password'],
-                    proxy_config={'http': proxy_url, 'https': proxy_url})
-            else:
-                api.set_authentication(
-                    provider=account['auth_service'],
-                    username=account['username'],
-                    password=account['password'])
-            break
-        except AuthException:
-            if i >= args.login_retries:
-                raise TooManyLoginAttempts('Exceeded login attempts.')
-            else:
-                i += 1
-                log.error(
-                    ('Failed to login to Pokemon Go with account %s. ' +
-                     'Trying again in %g seconds.'),
-                    account['username'], args.login_delay)
-                time.sleep(args.login_delay)
-
-    log.debug('Login for account %s successful.', account['username'])
-    time.sleep(20)
 
 
 def map_request(api, position, no_jitter=False):

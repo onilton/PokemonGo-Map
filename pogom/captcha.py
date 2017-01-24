@@ -29,17 +29,12 @@ from queue import Queue, Empty
 from sets import Set
 
 from pgoapi import PGoApi
-from pgoapi.utilities import f2i
-from pgoapi import utilities as util
-from pgoapi.exceptions import AuthException
-
-from .models import parse_map, GymDetails, parse_gyms, MainWorker, WorkerStatus, Token
 from .fakePogoApi import FakePogoApi
 
+from .models import Token
+from .transform import jitter_location
+from .account import check_login
 from .proxy import get_new_proxy
-from .utils import jitter_location
-
-import search
 
 log = logging.getLogger(__name__)
 
