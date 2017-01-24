@@ -154,7 +154,7 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
             status_text.append((
                 'Queues: {} search items, {} db updates, {} webhook.  ' +
                 'Total skipped items: {}. Spare accounts available: {}. ' +
-                'Accounts on hold: {}, Accounts with captcha: {}').format(
+                'Accounts on hold: {}. Accounts with captcha: {}').format(
                     search_items_queue_size, db_updates_queue.qsize(),
                     wh_queue.qsize(), skip_total, account_queue.qsize(),
                     len(account_failures), captcha_queue.qsize()))
