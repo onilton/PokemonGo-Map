@@ -1,3 +1,5 @@
+/*global hidecols*/
+
 /* Shared */
 var monthArray = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -50,7 +52,7 @@ function addWorker(mainWorkerHash, workerHash) {
        <div id="lastmod_${workerHash}"  class="status_cell"/>
        <div id="message_${workerHash}"  class="status_cell"/>
    `
-    columns = hide_columns(columns, hide_cols, '>')
+    columns = hideColumns(columns, hidecols, '>')
 
     var row = `
      <div id="row_${workerHash}" class="status_row">` + columns + `
@@ -98,8 +100,8 @@ function processWorker(i, worker) {
 }
 
 function parseResult(result) {
-    if (hide_cols != 0) {
-        hide_cols.sort(function(a, b){return b-a})      /* sort high to low */
+    if (hidecols !== 0) {
+        hidecols.sort(function (a, b) { return b-a })      /* sort high to low */
     }
     if (groupByWorker) {
         $.each(result.main_workers, processMainWorker)
@@ -138,7 +140,7 @@ function addTable(hash) {
            Message
          </div>
    `
-    columns = hide_columns(columns, hide_cols, '</div>')
+    columns = hideColumns(columns, hidecols, '</div>')
 
     var table = `
      <div class="status_table" id="table_${hash}">
@@ -168,20 +170,19 @@ function getCellValue(row, index) {
     return $(row).children('.status_cell').eq(index).html()
 }
 
-function hide_columns(message, colsToHide, delimiter) {
-    if (colsToHide.length == 0) {      
+function hideColumns(message, colsToHide, delimiter) {
+    if (colsToHide.length === 0) {
         return message
     }
     var msgs = message.split(delimiter)
     var numcols = msgs.length
-    for (var i=0; i < numcols; i++) {
-        if (((colsToHide[i]-1) < numcols) && ((colsToHide[i]-1) >=0)) {
-            msgs.splice(colsToHide[i]-1,1)
+    for (var i = 0; i < numcols; i++) {
+        if (((colsToHide[i] - 1) < numcols) && ((colsToHide[i] - 1) >=0)) {
+            msgs.splice(colsToHide[i] - 1, 1)
         }
     }
     return msgs.join(delimiter)
 }
-
 /*
  * Helpers
  */
