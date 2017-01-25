@@ -181,6 +181,7 @@ function hide_columns(message, colsToHide, delimiter) {
     }
     return msgs.join(delimiter)
 }
+
 /*
  * Helpers
  */
