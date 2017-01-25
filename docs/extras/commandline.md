@@ -30,6 +30,7 @@
                         [-whlfu WH_LFU_SIZE] [--ssl-certificate SSL_CERTIFICATE]
                         [--ssl-privatekey SSL_PRIVATEKEY] [-ps [logs]]
                         [-slt STATS_LOG_TIMER] [-sn STATUS_NAME]
+                        [-hcps COLUMN] [-hcs COLUMN]
                         [-spp STATUS_PAGE_PASSWORD] [-hk HASH_KEY] [-tut]
                         [-el ENCRYPT_LIB] [-odt ON_DEMAND_TIMEOUT]
                         [-v [filename.log] | -vv [filename.log]]
@@ -271,6 +272,12 @@
       -slt STATS_LOG_TIMER, --stats-log-timer STATS_LOG_TIMER
                             In log view, list per hr stats every X seconds [env
                             var: POGOMAP_STATS_LOG_TIMER]
+      -hcps COLUMN,         --hide-column-ps COLUMN
+                            Hide column(s) on -ps status screen.  Use one -hcps
+                            per column to hide.  (1 = first column)
+      -hcs COLUMN,          --hide-column-status COLUMN
+                            Hide column(s) on /status web page.  Use one -hcs
+                            per column to hide. (1 = first column)
       -sn STATUS_NAME, --status-name STATUS_NAME
                             Enable status page database update using STATUS_NAME
                             as main worker name. [env var: POGOMAP_STATUS_NAME]

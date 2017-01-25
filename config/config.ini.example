@@ -46,6 +46,8 @@
 #wh-timeout:            # Timeout (in seconds) for webhook requests (default: 2).
 #wh-backoff-factor:     # Factor (in seconds) by which the delay until next retry will increase (default: 0.25).
 #wh-lfu-size:           # Webhook LFU cache max size (default: 1000).
+#hide-column-ps:        # Column number to hide on -ps status screen.  Use a list for multiple columns e.g. [2,3,4]. (1 = first column)
+#hide-column-status:    # Column number to hide on /status web page.   Use a list for multiple columns e.g. [2,3,4]. (1 = first column)
 
 # Webserver settings
 #host:                  # address to listen on (default 127.0.0.1)

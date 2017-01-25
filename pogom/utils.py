@@ -352,6 +352,14 @@ def get_args():
                         help=('Pause searching while web UI is inactive ' +
                               'for this timeout(in seconds).'),
                         type=int, default=0)
+    parser.add_argument('-hcps', '--hide-column-ps',
+                        help='Hide column(s) on -ps status screen.  Use one ' +
+                             '-hcps per column to hide. (1 = first column)',
+                        default=None, type=int, action='append')
+    parser.add_argument('-hcs', '--hide-column-status',
+                        help='Hide column(s) on /status web page.  Use one ' +
+                             '-hcs per column to hide. (1 = first column)',
+                        default=None, type=int, action='append')
     verbosity = parser.add_mutually_exclusive_group()
     verbosity.add_argument('-v', '--verbose',
                            help=('Show debug messages from PokemonGo-Map ' +

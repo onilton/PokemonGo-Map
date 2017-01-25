@@ -101,9 +101,20 @@ def switch_status_printer(display_type, current_page, mainlog,
             display_type[0] = 'failedaccounts'
 
 
+def hide_columns(message, colsToHide):
+    if not colsToHide:
+        return message
+    msgs = message.split(' | ')
+    for item in colsToHide:
+        if ((item-1) < len(msgs)) and ((item-1) >= 0):
+            del msgs[item-1]
+    return ' | '.join(msgs)
+
+
 # Thread to print out the status of each worker.
 def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
-                   wh_queue, account_queue, account_failures, logmode):
+                   wh_queue, account_queue, account_failures, logmode,
+                   hide_cols):
 
     if (logmode == 'logs'):
         display_type = ["logs"]
@@ -121,6 +132,9 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
                args=(display_type, current_page, mainlog, loglevel, logmode))
     t.daemon = True
     t.start()
+
+    if hide_cols:
+        hide_cols.sort(reverse=True)
 
     while True:
         time.sleep(1)
@@ -198,10 +212,13 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
                 proxylen) + '} | {:7} | {:6} | {:5} | {:7} | {:8} | {:10}'
 
             # Print the worker status.
-            status_text.append(status.format('Worker ID', 'Start', 'User',
-                                             'Proxy', 'Success', 'Failed',
-                                             'Empty', 'Skipped', 'Captchas',
-                                             'Message'))
+            status_message = status.format('Worker ID', 'Start', 'User',
+                                           'Proxy', 'Success', 'Failed',
+                                           'Empty', 'Skipped', 'Captchas',
+                                           'Message')
+
+            status_text.append(hide_columns(status_message, hide_cols))
+
             for item in sorted(threadStatus):
                 if(threadStatus[item]['type'] == 'Worker'):
                     current_line += 1
@@ -212,7 +229,7 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
                     if current_line > end_line:
                         break
 
-                    status_text.append(status.format(
+                    status_message = status.format(
                         item,
                         time.strftime('%H:%M',
                                       time.localtime(
@@ -224,7 +241,9 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
                         threadStatus[item]['noitems'],
                         threadStatus[item]['skip'],
                         threadStatus[item]['captcha'],
-                        threadStatus[item]['message']))
+                        threadStatus[item]['message'])
+
+                    status_text.append(hide_columns(status_message, hide_cols))
 
         elif display_type[0] == 'failedaccounts':
             status_text.append('-----------------------------------------')
@@ -362,7 +381,8 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
                    name='status_printer',
                    args=(threadStatus, search_items_queue_array,
                          db_updates_queue, wh_queue, account_queue,
-                         account_failures, args.print_status))
+                         account_failures, args.print_status,
+                         args.hide_column_ps))
         t.daemon = True
         t.start()
 

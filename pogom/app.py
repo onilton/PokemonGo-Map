@@ -463,7 +463,8 @@ class Pogom(Flask):
         if args.status_page_password is None:
             abort(404)
 
-        return render_template('status.html')
+        columns = args.hide_column_status if (args.hide_column_status) else []
+        return render_template('status.html', hide_columns=columns)
 
     def post_status(self):
         args = get_args()
