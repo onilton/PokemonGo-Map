@@ -101,7 +101,7 @@ function processWorker(i, worker) {
 
 function parseResult(result) {
     if (hidecols !== 0) {
-        hidecols.sort(function (a, b) { return b-a })      /* sort high to low */
+        hidecols.sort(function (a, b) { return b - a })      /* sort high to low */
     }
     if (groupByWorker) {
         $.each(result.main_workers, processMainWorker)
@@ -177,7 +177,7 @@ function hideColumns(message, colsToHide, delimiter) {
     var msgs = message.split(delimiter)
     var numcols = msgs.length
     for (var i = 0; i < numcols; i++) {
-        if (((colsToHide[i] - 1) < numcols) && ((colsToHide[i] - 1) >=0)) {
+        if (((colsToHide[i] - 1) < numcols) && ((colsToHide[i] - 1) >= 0)) {
             msgs.splice(colsToHide[i] - 1, 1)
         }
     }
