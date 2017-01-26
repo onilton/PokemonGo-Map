@@ -48,6 +48,7 @@
 #wh-lfu-size:           # Webhook LFU cache max size (default: 1000).
 #hide-column-ps:        # Column number to hide on -ps status screen.  Use a list for multiple columns e.g. [2,3,4]. (1 = first column)
 #hide-column-status:    # Column number to hide on /status web page.   Use a list for multiple columns e.g. [2,3,4]. (1 = first column)
+#print-status:          # Enable ENTER to switch between log view and a status view.  Use 'status' to start in status view and 'logs' to start in log view
 
 # Webserver settings
 #host:                  # address to listen on (default 127.0.0.1)
