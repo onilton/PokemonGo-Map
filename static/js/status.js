@@ -42,17 +42,12 @@ function processMainWorker(i, worker) {
 }
 
 function addWorker(mainWorkerHash, workerHash) {
-    var columns = `
-       <div id="username_${workerHash}" class="status_cell"/>
-       <div id="success_${workerHash}"  class="status_cell"/>
-       <div id="fail_${workerHash}"     class="status_cell"/>
-       <div id="no_items_${workerHash}"  class="status_cell"/>
-       <div id="skip_${workerHash}"     class="status_cell"/>
-       <div id="captchas_${workerHash}" class="status_cell"/>
-       <div id="lastmod_${workerHash}"  class="status_cell"/>
-       <div id="message_${workerHash}"  class="status_cell"/>
-   `
-    columns = hideColumns(columns, hidecols, '>')
+    var columnNames = [ 'username', 'success', 'fail', 'no_items', 'skip', 'captchas', 'lastmod', 'message']
+
+    var visibleColumnNames = hideColumns(columnNames, hidecols)
+
+    var columns = visibleColumnNames.map(columnName =>
+       `<div id="${columnName}_${workerHash}" class="status_cell"/>`).join('\n')
 
     var row = `
      <div id="row_${workerHash}" class="status_row">` + columns + `
@@ -114,33 +109,15 @@ function parseResult(result) {
  * Tables
  */
 function addTable(hash) {
-    var columns = `
+    var columnNames = [ 'Username', 'Success', 'Fail', 'No Items', 'Skipped', 'Captchas', 'Last Modified', 'Message']
+
+    var visibleColumnNames = hideColumns(columnNames, hidecols)
+
+    var columns = visibleColumnNames.map(columnName => `
          <div class="status_cell">
-           Username
+           ${columnName}
          </div>
-         <div class="status_cell">
-           Success
-         </div>
-         <div class="status_cell">
-           Fail
-         </div>
-         <div class="status_cell">
-           No Items
-         </div>
-         <div class="status_cell">
-           Skipped
-         </div>
-         <div class="status_cell">
-           Captchas
-         </div>
-         <div class="status_cell">
-           Last Modified
-         </div>
-         <div class="status_cell">
-           Message
-         </div>
-   `
-    columns = hideColumns(columns, hidecols, '</div>')
+    `).join('\n')
 
     var table = `
      <div class="status_table" id="table_${hash}">
@@ -170,18 +147,8 @@ function getCellValue(row, index) {
     return $(row).children('.status_cell').eq(index).html()
 }
 
-function hideColumns(message, colsToHide, delimiter) {
-    if (colsToHide.length === 0) {
-        return message
-    }
-    var msgs = message.split(delimiter)
-    var numcols = msgs.length
-    for (var i = 0; i < numcols; i++) {
-        if (((colsToHide[i] - 1) < numcols) && ((colsToHide[i] - 1) >= 0)) {
-            msgs.splice(colsToHide[i] - 1, 1)
-        }
-    }
-    return msgs.join(delimiter)
+function hideColumns(message, colsToHide) {
+    return columnNames.filter((c, index) => !hidecols.contains(index + 1));
 }
 /*
  * Helpers
