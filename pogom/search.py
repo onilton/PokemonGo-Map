@@ -554,7 +554,7 @@ def get_stats_message(threadStatus):
     message = ('Total active: {}  |  Success: {} ({:.1f}/hr) | ' +
                'Fails: {} ({:.1f}/hr) | Empties: {} ({:.1f}/hr) | ' +
                'Skips {} ({:.1f}/hr) | ' +
-               'Captchas: {} ({:.1f}/hr)|${:2}/hr|${:2}/mo').format(
+               'Captchas: {} ({:.1f}/hr)|${:.5f}/hr|${:.3f}/mo').format(
                    overseer['active_accounts'],
                    overseer['success_total'], sph,
                    overseer['fail_total'], fph,
