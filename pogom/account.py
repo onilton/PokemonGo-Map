@@ -27,7 +27,8 @@ def check_login(args, account, api, position, proxy_url):
 
     # Try to login. Repeat a few times, but don't get stuck here.
     i = 0
-    while i <= args.login_retries:
+    # One initial try + login_retries.
+    while i < (args.login_retries + 1):
         try:
             if proxy_url:
                 api.set_authentication(
