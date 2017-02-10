@@ -26,9 +26,9 @@ def check_login(args, account, api, position, proxy_url):
             return
 
     # Try to login. Repeat a few times, but don't get stuck here.
-    i = 0
+    num_tries = 0
     # One initial try + login_retries.
-    while i < (args.login_retries + 1):
+    while num_tries < (args.login_retries + 1):
         try:
             if proxy_url:
                 api.set_authentication(
@@ -43,18 +43,18 @@ def check_login(args, account, api, position, proxy_url):
                     password=account['password'])
             break
         except AuthException:
-            i += 1
+            num_tries += 1
             log.error(
                 ('Failed to login to Pokemon Go with account %s. ' +
                  'Trying again in %g seconds.'),
                 account['username'], args.login_delay)
             time.sleep(args.login_delay)
 
-    if i > args.login_retries:
+    if num_tries > args.login_retries:
         log.error(
             ('Failed to login to Pokemon Go with account %s in ' +
              '%d tries. Giving up.'),
-            account['username'], i)
+            account['username'], num_tries)
         raise TooManyLoginAttempts('Exceeded login attempts.')
 
     log.debug('Login for account %s successful.', account['username'])
