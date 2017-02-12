@@ -1975,7 +1975,8 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                             'active_fort_modifier': active_fort_modifier
                         }))
 
-                    if lure_info is not None and config['parse_pokemon']:
+                    if (args.lured_pokemon and lure_info is not None
+                            and config['parse_pokemon']):
                         # pre-build a list of encountered pokemon
                         fort_encounter_id = [
                             b64encode(str(lure_info['encounter_id']))]
