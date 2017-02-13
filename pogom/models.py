@@ -1993,20 +1993,23 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                         construct_pokemon_dict(pokemon, f, encounter_result, disappear_time, lure_info)
 
                         if args.webhooks:
-                            wh_update_queue.put(('pokemon', {
-                                'encounter_id': b64encode(str(lure_info['encounter_id'])),
-                                'pokestop_id': b64encode(str(f['id'])),
-                                'pokemon_id': lure_info['active_pokemon_id'],
-                                'latitude': f['latitude'],
-                                'longitude': f['longitude'],
-                                'disappear_time': calendar.timegm(disappear_time.timetuple()),
-                                'individual_attack': pokemon[lure_info['encounter_id']]['individual_attack'],
-                                'individual_defense': pokemon[lure_info['encounter_id']]['individual_defense'],
-                                'individual_stamina': pokemon[lure_info['encounter_id']]['individual_stamina'],
-                                'move_1': pokemon[lure_info['encounter_id']]['move_1'],
-                                'move_2': pokemon[lure_info['encounter_id']]['move_2']
-                            }))
-
+                            wh_poke = pokemon[lure_info['encounter_id']].copy()
+                            wh_poke.update({
+                                'disappear_time': calendar.timegm(
+                                    disappear_time.timetuple()),
+                                'last_modified_time':
+                                p['last_modified_timestamp_ms'],
+                                'time_until_hidden_ms':
+                                p['time_till_hidden_ms']
+                                # We don't know yet what do with this,
+                                # so let's comment it for now
+                                # 'verified': SpawnPoint.tth_found(sp),
+                                # 'seconds_until_despawn':
+                                # seconds_until_despawn,
+                                # 'spawn_start': start_end[0],
+                                # 'spawn_end': start_end[1]
+                            })
+                            wh_update_queue.put(('pokemon', wh_poke))
                 else:
                     lure_expiration, active_fort_modifier = None, None
 
