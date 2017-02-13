@@ -691,7 +691,7 @@ function getNotifyText(item) {
     var ntext = repArray(notifyText, find, replace)
 
     if (isLured) {
-        ntitle += " (lured)"
+        ntitle += ' (lured)'
     }
 
     return {

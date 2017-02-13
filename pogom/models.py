@@ -1684,7 +1684,8 @@ def hex_bounds(center, steps=None, radius=None):
     return (n, e, s, w)
 
 
-def construct_pokemon_dict(pokemons, p, encounter_result, disappear_time, lure_info=None):
+def construct_pokemon_dict(pokemons, p, encounter_result, disappear_time,
+                           lure_info=None):
     if lure_info is None:
         encounter_id = p['encounter_id']
         spawnpoint_id = p['spawn_point_id']
@@ -1717,7 +1718,8 @@ def construct_pokemon_dict(pokemons, p, encounter_result, disappear_time, lure_i
                 'DISK_ENCOUNTER']['result'] == 1:
             pokemon_info = encounter_result['responses'][
                 'DISK_ENCOUNTER']['pokemon_data']
-        if lure_info is None and 'wild_pokemon' in encounter_result['responses']['ENCOUNTER']:
+        if lure_info is None and 'wild_pokemon' in encounter_result[
+                'responses']['ENCOUNTER']:
             pokemon_info = encounter_result['responses']['ENCOUNTER'][
                 'wild_pokemon']['pokemon_data']
 
@@ -1914,7 +1916,8 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                 encounter_result = req.get_buddy_walked()
                 encounter_result = req.call()
 
-            construct_pokemon_dict(pokemon, p, encounter_result, disappear_time, lure_info=None)
+            construct_pokemon_dict(pokemon, p, encounter_result,
+                                   disappear_time, lure_info=None)
 
             if args.webhooks:
 
@@ -1966,31 +1969,46 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
 
                     if lure_info is not None and config['parse_pokemon']:
                         # pre-build a list of encountered pokemon
-                        fort_encounter_id = [b64encode(str(lure_info['encounter_id']))]
+                        fort_encounter_id = [
+                            b64encode(str(lure_info['encounter_id']))]
                         if fort_encounter_id:
                             query = (Pokemon
                                      .select()
-                                     .where((Pokemon.disappear_time > datetime.utcnow()) & (Pokemon.encounter_id << fort_encounter_id))
+                                     .where((Pokemon.disappear_time >
+                                             datetime.utcnow()) &
+                                            (Pokemon.encounter_id <<
+                                             fort_encounter_id))
                                      .dicts()
                                      )
-                            fort_pokemon = [(p['encounter_id'], p['pokestop_id']) for p in query]
+                            fort_pokemon = [(p['encounter_id'],
+                                             p['pokestop_id']) for p in query]
 
-                        # Don't parse pokemon we've already encountered. Avoids IVs getting nulled out on rescanning.
-                        if (b64encode(str(lure_info['encounter_id'])), f['id']) in fort_pokemon:
+                        # Don't parse pokemon we've already encountered.
+                        # Avoids IVs getting nulled out on rescanning.
+                        if ((b64encode(str(
+                                lure_info['encounter_id'])), f['id'])
+                                in fort_pokemon):
                             skipped += 1
                             continue
 
-                        disappear_time = datetime.utcfromtimestamp(lure_info['lure_expires_timestamp_ms'] / 1000)
+                        disappear_time = datetime.utcfromtimestamp(
+                            lure_info['lure_expires_timestamp_ms'] / 1000)
 
                         encounter_result = None
-                        if (args.encounter and (lure_info['active_pokemon_id'] in args.encounter_whitelist or
-                                                lure_info['active_pokemon_id'] not in args.encounter_blacklist and not args.encounter_whitelist)):
+                        if (args.encounter and (
+                                lure_info['active_pokemon_id']
+                                in args.encounter_whitelist or
+                                lure_info['active_pokemon_id'] not
+                                in args.encounter_blacklist and
+                                not args.encounter_whitelist)):
                             time.sleep(args.encounter_delay)
-                            encounter_result = api.disk_encounter(encounter_id=lure_info['encounter_id'],
-                                                                  fort_id=f['id'],
-                                                                  player_latitude=step_location[0],
-                                                                  player_longitude=step_location[1])
-                        construct_pokemon_dict(pokemon, f, encounter_result, disappear_time, lure_info)
+                            encounter_result = api.disk_encounter(
+                                encounter_id=lure_info['encounter_id'],
+                                fort_id=f['id'],
+                                player_latitude=step_location[0],
+                                player_longitude=step_location[1])
+                        construct_pokemon_dict(pokemon, f, encounter_result,
+                                               disappear_time, lure_info)
 
                         if args.webhooks:
                             wh_poke = pokemon[lure_info['encounter_id']].copy()
