@@ -67,6 +67,8 @@ var gymTypes = ['Uncontested', 'Mystic', 'Valor', 'Instinct']
 var gymPrestige = [2000, 4000, 8000, 12000, 16000, 20000, 30000, 40000, 50000]
 var audio = new Audio('static/sounds/ding.mp3')
 
+var GenderType = ['♂', '♀', '⚪']
+
 /*
   text place holders:
   <pkm> - pokemon name
@@ -158,7 +160,7 @@ function initMap() { // eslint-disable-line no-unused-vars
     map.mapTypes.set('style_light2', styleLight2)
 
     var stylePgo = new google.maps.StyledMapType(pGoStyle, {
-        name: 'PokemonGo'
+        name: 'RocketMap'
     })
     map.mapTypes.set('style_pgo', stylePgo)
 
@@ -173,17 +175,17 @@ function initMap() { // eslint-disable-line no-unused-vars
     map.mapTypes.set('style_light2_nl', styleLight2Nl)
 
     var stylePgoNl = new google.maps.StyledMapType(pGoStyleNoLabels, {
-        name: 'PokemonGo (No Labels)'
+        name: 'RocketMap (No Labels)'
     })
     map.mapTypes.set('style_pgo_nl', stylePgoNl)
 
     var stylePgoDay = new google.maps.StyledMapType(pGoStyleDay, {
-        name: 'PokemonGo Day'
+        name: 'RocketMap Day'
     })
     map.mapTypes.set('style_pgo_day', stylePgoDay)
 
     var stylePgoNight = new google.maps.StyledMapType(pGoStyleNight, {
-        name: 'PokemonGo Night'
+        name: 'RocketMap Night'
     })
     map.mapTypes.set('style_pgo_night', stylePgoNight)
 
@@ -391,22 +393,32 @@ function openMapDirections(lat, lng) { // eslint-disable-line no-unused-vars
     window.open(url, '_blank')
 }
 
-function pokemonLabel(name, rarity, types, disappearTime, id, latitude, longitude, encounterId, atk, def, sta, move1, move2, isLured) {
+function pokemonLabel(name, rarity, types, disappearTime, id, latitude, longitude, encounterId, atk, def, sta, move1, move2, weight, height, gender, isLured) {
     var disappearDate = new Date(disappearTime)
     var rarityDisplay = rarity ? '(' + rarity + ')' : ''
     var typesDisplay = ''
+    var pMove1 = (moves[move1] !== undefined) ? i8ln(moves[move1]['name']) : 'gen/unknown'
+    var pMove2 = (moves[move2] !== undefined) ? i8ln(moves[move2]['name']) : 'gen/unknown'
+
     $.each(types, function (index, type) {
         typesDisplay += getTypeSpan(type)
     })
     var details = ''
     if (atk != null) {
-        var iv = (atk + def + sta) / 45 * 100
+        var iv = getIv(atk, def, sta)
         details = `
             <div>
                 IV: ${iv.toFixed(1)}% (${atk}/${def}/${sta})
             </div>
             <div>
-                Moves: ${i8ln(moves[move1]['name'])} / ${i8ln(moves[move2]['name'])}
+                Moves: ${pMove1} / ${pMove2}
+            </div>
+            `
+    }
+    if (gender != null) {
+        details += `
+            <div>
+                Gender: ${GenderType[gender - 1]} | Weight: ${weight.toFixed(2)}kg | Height: ${height.toFixed(2)}m
             </div>
             `
     }
@@ -713,7 +725,7 @@ function customizePokemonMarker(marker, item, skipNotification) {
     }
 
     marker.infoWindow = new google.maps.InfoWindow({
-        content: pokemonLabel(item['pokemon_name'], item['pokemon_rarity'], item['pokemon_types'], item['disappear_time'], item['pokemon_id'], item['latitude'], item['longitude'], item['encounter_id'], item['individual_attack'], item['individual_defense'], item['individual_stamina'], item['move_1'], item['move_2'], isLured),
+        content: pokemonLabel(item['pokemon_name'], item['pokemon_rarity'], item['pokemon_types'], item['disappear_time'], item['pokemon_id'], item['latitude'], item['longitude'], item['encounter_id'], item['individual_attack'], item['individual_defense'], item['individual_stamina'], item['move_1'], item['move_2'], item['weight'], item['height'], item['gender'], isLured),
         disableAutoPan: true
     })
 
@@ -1813,7 +1825,7 @@ function showGymDetails(id) { // eslint-disable-line no-unused-vars
                                 <div class="move">
                                     <div class="name">
                                         ${pokemon.move_1_name}
-                                        <div class="type ${pokemon.move_1_type.toLowerCase()}">${pokemon.move_1_type}</div>
+                                        <div class="type ${pokemon.move_1_type['type_en'].toLowerCase()}">${pokemon.move_1_type['type']}</div>
                                     </div>
                                     <div class="damage">
                                         ${pokemon.move_1_damage}
@@ -1823,7 +1835,7 @@ function showGymDetails(id) { // eslint-disable-line no-unused-vars
                                 <div class="move">
                                     <div class="name">
                                         ${pokemon.move_2_name}
-                                        <div class="type ${pokemon.move_2_type.toLowerCase()}">${pokemon.move_2_type}</div>
+                                        <div class="type ${pokemon.move_2_type['type_en'].toLowerCase()}">${pokemon.move_2_type['type']}</div>
                                         <div>
                                             <i class="move-bar-sprite move-bar-sprite-${moveEnergy}"></i>
                                         </div>
@@ -2117,7 +2129,7 @@ $(function () {
     $selectPokemonNotify = $('#notify-pokemon')
     $selectRarityNotify = $('#notify-rarity')
     $textPerfectionNotify = $('#notify-perfection')
-    var numberOfPokemon = 151
+    var numberOfPokemon = 493
 
     // Load pokemon names and populate lists
     $.getJSON('static/dist/data/pokemon.min.json').done(function (data) {
