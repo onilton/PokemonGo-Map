@@ -482,6 +482,7 @@ class SpeedScan(HexSearch):
         self.next_band_date = self.refresh_date
         self.location_change_date = datetime.utcnow()
         self.queues = [[]]
+        self.queue_version = 1
         self.ready = False
         self.empty_hive = False
         self.spawns_found = 0
@@ -698,6 +699,8 @@ class SpeedScan(HexSearch):
 
         queue.sort(key=itemgetter('start'))
         self.queues[0] = queue
+        # Increment version and mod it to avoid overflows
+        self.queue_version += (self.queue_version + 1) % 10000
         self.ready = True
         log.info('New queue created with %d entries in %f seconds', len(queue),
                  (end - start))
@@ -1029,6 +1032,7 @@ class SpeedScan(HexSearch):
             # Mark scanned
             item['done'] = 'Scanned'
             status['index_of_queue_item'] = i
+            status['queue_version'] = self.queue_version
 
             messages['search'] = 'Scanning step {} for a {}.'.format(
                 best['step'], best['kind'])
@@ -1036,28 +1040,15 @@ class SpeedScan(HexSearch):
 
     def task_done(self, status, step, step_location, step_start, parsed=False):
         if parsed:
+            # If queue was refreshed, just ignore this item
+            if status.get('queue_version') != self.queue_version:
+                log.debug('Queue was refreshed, ignoring old queue item.')
+                return
+
             # This now holds the actual time of scan in seconds
             scan_secs = parsed['scan_secs']
-            # Record delay between spawn time and scanning for statistics
-            now_secs = date_secs(datetime.utcnow())
-            item = self.queues[0][status['index_of_queue_item']]
-            seconds_within_band = (
-                int((datetime.utcnow() - self.refresh_date).total_seconds()) +
-                self.refresh_ms)
-            enforced_delay = (self.args.spawn_delay if item['kind'] == 'spawn'
-                              else 0)
-            start_delay = seconds_within_band - item['start'] + enforced_delay
-            safety_buffer = item['end'] - seconds_within_band
 
-            # I need some help here, if the queue has changed since the scan
-            # the item is different, can we search queue to find the originally
-            # item? I have no idae on syntax?
             item = self.queues[0][status['index_of_queue_item']]
-            if item['step'] != step or item['start'] != step_start or (
-                    item['loc'] != step_location):
-                log.info('Step item has changed since queue refresh')
-                log.info('Putting back step %d in queue', item['step'])
-                return
 
             safety_buffer = item['end'] - scan_secs
             start_secs = item['start']
