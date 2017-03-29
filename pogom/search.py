@@ -353,7 +353,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
     account_queue = Queue()
     threadStatus = {}
     key_scheduler = None
-    api_version = '0.57.2'
+    api_version = '0.57.4'
     api_check_time = 0
 
     '''
@@ -988,7 +988,7 @@ def search_worker_thread(args, account_queue, account_failures,
                         break
 
                     parsed = parse_map(args, response_dict, step_location,
-                                       dbq, whq, api, scan_date)
+                                       dbq, whq, api, scan_date, account)
                     scheduler.task_done(status, parsed)
                     if parsed['count'] > 0:
                         status['success'] += 1
